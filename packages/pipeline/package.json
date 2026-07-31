@@ -1,0 +1,24 @@
+{
+  "name": "@granthalaya/pipeline",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Internal admin tooling: PDF triage, OCR, normalization and book packaging. Never user-facing.",
+  "bin": {
+    "granthalaya": "./src/cli.ts"
+  },
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "cli": "bun run ./src/cli.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "bun test"
+  },
+  "dependencies": {
+    "@granthalaya/core": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "~6.0.3"
+  }
+}
