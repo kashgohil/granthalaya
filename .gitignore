@@ -1,0 +1,45 @@
+# dependencies (bun install)
+node_modules
+
+# build output
+out
+dist
+*.tgz
+
+# apps/web — TanStack Start / Vite / Nitro
+.output
+.nitro
+.tanstack
+.vite
+
+# apps/mobile — Expo / Metro (generated native dirs are ignored in apps/mobile/.gitignore)
+.expo
+.metro-health-check*
+expo-env.d.ts
+
+# code coverage
+coverage
+*.lcov
+
+# logs
+logs
+_.log
+report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
+
+# dotenv environment variable files (Bun auto-loads .env; .env.example is committed)
+.env
+.env.development.local
+.env.test.local
+.env.production.local
+.env.local
+
+# caches
+.eslintcache
+.cache
+*.tsbuildinfo
+
+# IntelliJ based IDEs
+.idea
+
+# Finder (MacOS) folder config
+.DS_Store

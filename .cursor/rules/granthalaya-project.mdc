@@ -1,0 +1,8 @@
+---
+description: Granthalaya project guidance — monorepo layout, Bun/Elysia/Vite/Expo tooling rules, web & mobile conventions, and non-negotiable domain rules (verse IDs, Gujarati typography, scripture fidelity, local-first mobile).
+alwaysApply: true
+---
+
+Follow the project guidance in CLAUDE.md (single source of truth, shared with Claude Code):
+
+@CLAUDE.md
