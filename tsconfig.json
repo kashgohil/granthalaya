@@ -1,0 +1,9 @@
+{
+  // Root config exists so editors resolve settings for stray root-level files.
+  // Real type checking happens per workspace (`bun run typecheck`).
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "types": ["bun"]
+  },
+  "include": ["*.ts"]
+}

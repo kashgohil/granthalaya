@@ -1,0 +1,25 @@
+{
+  "name": "granthalaya",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "bun run --filter '@granthalaya/api' --filter 'web' dev",
+    "dev:api": "bun run --filter '@granthalaya/api' dev",
+    "dev:web": "bun run --filter 'web' dev",
+    "dev:mobile": "bun run --filter 'mobile' start",
+    "check": "biome check",
+    "check:fix": "biome check --write",
+    "typecheck": "bun run --filter '*' typecheck",
+    "test": "bun test"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.5.6",
+    "@types/bun": "latest",
+    "typescript": "~6.0.3"
+  }
+}

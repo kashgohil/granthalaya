@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  // Shared compiler settings for every workspace. Apps with their own toolchain
+  // (Expo, Vite) layer their required options on top; packages extend this directly.
+  "compilerOptions": {
+    // Environment & latest language features
+    "target": "ESNext",
+    "lib": ["ESNext"],
+    "module": "Preserve",
+    "moduleDetection": "force",
+    "moduleResolution": "bundler",
+
+    // Everything is bundled (Bun, Metro, Vite) — never emit from tsc
+    "allowImportingTsExtensions": true,
+    "verbatimModuleSyntax": true,
+    "noEmit": true,
+    "isolatedModules": true,
+    "resolveJsonModule": true,
+    "esModuleInterop": true,
+
+    // Strictness
+    "strict": true,
+    "skipLibCheck": true,
+    "noFallthroughCasesInSwitch": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitOverride": true,
+    "noUncheckedSideEffectImports": true
+  }
+}
