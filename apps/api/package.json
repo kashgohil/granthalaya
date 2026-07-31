@@ -1,0 +1,26 @@
+{
+  "name": "@granthalaya/api",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Elysia (Bun) API: auth, book catalog & distribution, sync, TTS proxy.",
+  "exports": {
+    ".": "./src/app.ts"
+  },
+  "scripts": {
+    "dev": "bun --watch run ./src/index.ts",
+    "start": "bun run ./src/index.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "bun test"
+  },
+  "dependencies": {
+    "@elysiajs/cors": "^1.4.2",
+    "@granthalaya/core": "workspace:*",
+    "@sinclair/typebox": "^0.34.52",
+    "elysia": "^1.4.29"
+  },
+  "devDependencies": {
+    "@elysiajs/eden": "^1.4.9",
+    "typescript": "~6.0.3"
+  }
+}
