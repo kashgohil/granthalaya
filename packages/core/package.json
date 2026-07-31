@@ -1,0 +1,17 @@
+{
+  "name": "@granthalaya/core",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Pure TypeScript domain layer: book format, verse addressing, SRS, quiz engine. Zero runtime dependencies.",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "bun test"
+  },
+  "devDependencies": {
+    "typescript": "~6.0.3"
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    // `bun` types are for the test files only — runtime code in this package must
+    // stay platform-pure (no Bun/Node APIs, no I/O, no React).
+    "types": ["bun"],
+    "noUnusedLocals": true,
+    "noUnusedParameters": true
+  },
+  "include": ["src/**/*.ts"]
+}
