@@ -1,0 +1,117 @@
+# Granthalaya
+
+A digital library for religious scriptures (primarily Gujarati): premium book-like reading,
+recital, memorization, and study tools. `ROADMAP.md` is the source of truth for scope,
+phases, and architecture decisions — read it before planning any feature work, and keep its
+slice checkboxes/status markers updated as work lands.
+
+## Monorepo layout
+
+| Path | What it is | Audience |
+|---|---|---|
+| `apps/mobile` | Expo (expo-router) app — **the consumer product**: reading, book install, recital, flashcards, quizzes | End users only; no admin features |
+| `apps/web` | TanStack Start + Vite + Tailwind 4 — promotional site + admin studio (PDF proofing, layer authoring, publishing) behind auth | Public visitors + admin |
+| `apps/api` | Elysia (Bun) API — auth, book catalog/distribution, sync, TTS proxy (scaffolded in P0.1) | All clients, via typed Eden client |
+| `packages/core` | Pure TS domain: book format/Zod schemas, verse addressing, SRS, quiz engine. Zero runtime deps; shared by mobile, web, api | — |
+| `packages/pipeline` | Internal CLI tooling: PDF triage, OCR, normalization, packaging. Never user-facing | Admin |
+
+The content flow: PDFs → `packages/pipeline` + admin studio (web) → published packages served
+by `apps/api` → installed offline in `apps/mobile`.
+
+## Runtime & tooling
+
+Bun is the runtime and package manager everywhere:
+
+- `bun install`, `bun test`, `bun run <script>`, `bunx <pkg>`, `bun <file>` (never node/npm/pnpm/yarn/jest/vitest)
+- Bun auto-loads `.env` — don't add dotenv. It reads from the **process working directory
+  and does not walk up**, so each app keeps its own `.env` next to its `package.json`
+  (Vite and Expo behave the same way); see the `.env.example` in each app
+- Backend code: Elysia for HTTP APIs (not express); `bun:sqlite` for SQLite; `Bun.file` over `node:fs`; `Bun.$` for shell; built-in `WebSocket`
+- Exceptions to "Bun for everything": `apps/web` is TanStack Start on **Vite** and `apps/mobile` uses the **Expo/Metro** toolchain — both are intentional; run them via their `bun run` scripts, don't replace them with `Bun.serve()` HTML imports or `bun build`
+
+## Commands
+
+```sh
+# repo root — run these three before calling work done (no CI yet, this is the gate)
+bun run check            # biome lint + format, whole repo (--write via check:fix)
+bun run typecheck        # tsc --noEmit in every workspace
+bun test                 # bun:test across every workspace
+
+bun run dev              # api (:3001) + web (:3000) together
+bun run dev:api / dev:web / dev:mobile
+
+# apps/api (run from apps/api)
+bun run dev              # Elysia on :3001, watch mode
+bun run start            # run once
+
+# apps/web (run from apps/web)
+bun run dev              # Vite dev server on :3000
+bun run build            # production build
+bun run generate-routes  # regenerate TanStack Router route tree
+
+# apps/mobile (run from apps/mobile)
+bun run start            # expo start
+bun run ios / android    # run on simulator/device
+
+# packages/pipeline
+bun run --filter '@granthalaya/pipeline' cli   # admin CLI (help / version)
+```
+
+Tests use `bun test` with `bun:test` (`import { test, expect } from "bun:test"`), colocated
+next to the code as `*.test.ts`.
+
+## Conventions
+
+### Workspace-wide
+- **Biome everywhere** (not eslint/prettier) — root `biome.json` is the source of truth;
+  nested configs set `"root": false` + `"extends": "//"`. Biome's JSON parser chokes on
+  comments in the *nested* config files, so keep those comment-free
+- Shared compiler options live in `tsconfig.base.json`; `apps/web` (Vite) and `apps/mobile`
+  (Expo) keep their own toolchain configs and layer settings on top
+- Workspace packages are consumed as **TypeScript source** — `exports` point at `src/`, there
+  is no build step and no `dist/`. Consumers need `allowImportingTsExtensions`
+- `bun install` uses Bun's **isolated linker** (real packages in `node_modules/.bun/`, each
+  workspace symlinked). Metro must keep hierarchical lookup *enabled* — see the note in
+  `apps/mobile/metro.config.js`
+
+### apps/api
+- Feature-based modules in `src/modules/<feature>/` (`index.ts` routes, `service.ts` logic,
+  `model.ts` schemas); method chaining is required for Elysia's type inference
+- `src/app.ts` builds the instance and exports `type App`; only `src/index.ts` calls `.listen`,
+  so tests and `treaty(app)` can drive the app in-process
+- Clients import `type { App } from "@granthalaya/api"` and talk to it through Eden treaty
+  (`apps/*/src/lib/api.ts`) — never hand-write fetch calls against the API
+
+### apps/web
+- File-based routing in `src/routes/`; `src/routeTree.gen.ts` is generated — never edit it by hand
+- Import alias `#/*` → `./src/*`
+- shadcn/ui (new-york style, zinc base, lucide icons) in `#/components/ui`; add components with `bunx shadcn@latest add <name>`
+- Tailwind 4 CSS-first config in `src/styles.css` (no tailwind.config file)
+- Biome for lint/format (not eslint/prettier)
+
+### apps/mobile
+- expo-router screens in `src/app/`; shared UI in `src/components/`
+- Import alias `@/*` → `./src/*`
+- `src/types/globals.d.ts` is the committed stand-in for Expo's gitignored `expo-env.d.ts`,
+  so `bun run typecheck` works on a clean checkout — don't delete it
+- See `apps/mobile/CLAUDE.md` / `AGENTS.md` for Expo-specific guidance
+
+### packages/*
+- `packages/core` stays platform-pure: no React, no Bun/Node APIs, no I/O — types, schemas, and pure logic only, fully unit-tested with `bun test`
+- `packages/pipeline` may use anything optimal per step (Bun APIs, external OCR services)
+
+## Domain rules (non-negotiable)
+
+- **Verse IDs are the atom.** Highlights, audio sync, flashcards, quizzes, sync all key off
+  stable verse/passage IDs (spec: `docs/book-format.md`, P0.2). Never key user data to text
+  offsets or scroll positions.
+- **Gujarati typography:** line-height 1.7–2.0 for body text; base font ~10–15% larger than
+  Latin; **never** apply `letter-spacing` to Gujarati (splits conjuncts); ragged-right, not
+  force-justified; highlights as background color, never underline; never split text inside
+  an akshara (conjunct cluster). Body font: Rasa; fallback Noto Serif Gujarati; UI: Noto Sans
+  Gujarati / Mukta Vaani.
+- **Scripture fidelity:** book content is published only after human proofing in the studio;
+  never trust text extracted from Gujarati PDFs' embedded fonts — render pages to images and
+  OCR instead.
+- **Local-first mobile:** reading, annotations, and study must work fully offline; the API is
+  for sync and distribution, not for rendering the reading path.
