@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "description": "Pure TypeScript domain layer: book format, verse addressing, SRS, quiz engine. Zero runtime dependencies.",
+  "description": "Platform-pure TypeScript domain layer: book format, verse addressing, SRS, quiz engine. No React, no Bun/Node APIs, no I/O.",
   "exports": {
     ".": "./src/index.ts"
   },
@@ -13,5 +13,8 @@
   },
   "devDependencies": {
     "typescript": "~6.0.3"
+  },
+  "dependencies": {
+    "zod": "^4.4.3"
   }
 }
