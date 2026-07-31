@@ -1,0 +1,173 @@
+{
+  "formatVersion": 1,
+  "id": "gayatri-mantra",
+  "title": {
+    "gu": "ગાયત્રી મંત્ર",
+    "en": "Gayatri Mantra"
+  },
+  "language": "sa",
+  "script": "gujr",
+  "contentVersion": "1.0.0",
+  "contentStatus": "draft",
+  "source": {
+    "edition": "Traditional; Rigveda 3.62.10",
+    "notes": "Reference fixture for the book format. Public-domain text, but hand-entered and not proofed against a printed edition — see contentStatus."
+  },
+  "license": {
+    "id": "public-domain"
+  },
+  "layers": [
+    {
+      "id": "gu",
+      "kind": "original",
+      "language": "sa",
+      "script": "gujr",
+      "label": {
+        "gu": "મૂળ",
+        "en": "Original"
+      }
+    },
+    {
+      "id": "iso",
+      "kind": "transliteration",
+      "language": "sa",
+      "script": "latn",
+      "scheme": "iso-15919",
+      "label": {
+        "gu": "લિપ્યંતર",
+        "en": "Transliteration"
+      }
+    },
+    {
+      "id": "en",
+      "kind": "translation",
+      "language": "en",
+      "script": "latn",
+      "label": {
+        "en": "English"
+      },
+      "attribution": "Working translation written for this fixture"
+    },
+    {
+      "id": "words",
+      "kind": "wordMeanings",
+      "language": "en",
+      "script": "latn",
+      "label": {
+        "en": "Word by word"
+      }
+    }
+  ],
+  "primaryLayer": "gu",
+  "structure": [
+    {
+      "kind": "verse",
+      "id": "v1",
+      "number": "૧",
+      "form": "verse",
+      "layers": {
+        "gu": "ૐ ભૂર્ભુવઃ સ્વઃ ।",
+        "iso": "oṁ bhūr bhuvaḥ svaḥ",
+        "en": "Om. Earth, atmosphere, heaven.",
+        "words": [
+          {
+            "word": "ૐ",
+            "meaning": "the primordial syllable"
+          },
+          {
+            "word": "ભૂઃ",
+            "meaning": "the earth",
+            "note": "first of the three vyāhṛtis"
+          },
+          {
+            "word": "ભુવઃ",
+            "meaning": "the atmosphere"
+          },
+          {
+            "word": "સ્વઃ",
+            "meaning": "the heavens"
+          }
+        ]
+      }
+    },
+    {
+      "kind": "verse",
+      "id": "v2",
+      "number": "૨",
+      "form": "verse",
+      "layers": {
+        "gu": "તત્સવિતુર્વરેણ્યમ્ ।",
+        "iso": "tat savitur vareṇyam",
+        "en": "that adorable light of Savitṛ, the sun,",
+        "words": [
+          {
+            "word": "તત્",
+            "meaning": "that"
+          },
+          {
+            "word": "સવિતુઃ",
+            "meaning": "of Savitṛ, the sun"
+          },
+          {
+            "word": "વરેણ્યમ્",
+            "meaning": "adorable, most excellent"
+          }
+        ]
+      }
+    },
+    {
+      "kind": "verse",
+      "id": "v3",
+      "number": "૩",
+      "form": "verse",
+      "layers": {
+        "gu": "ભર્ગો દેવસ્ય ધીમહિ ।",
+        "iso": "bhargo devasya dhīmahi",
+        "en": "the divine radiance — on this we meditate;",
+        "words": [
+          {
+            "word": "ભર્ગઃ",
+            "meaning": "radiance, effulgence"
+          },
+          {
+            "word": "દેવસ્ય",
+            "meaning": "of the god"
+          },
+          {
+            "word": "ધીમહિ",
+            "meaning": "we meditate upon"
+          }
+        ]
+      }
+    },
+    {
+      "kind": "verse",
+      "id": "v4",
+      "number": "૪",
+      "form": "verse",
+      "layers": {
+        "gu": "ધિયો યો નઃ પ્રચોદયાત્ ॥",
+        "iso": "dhiyo yo naḥ pracodayāt",
+        "en": "may it impel our thoughts.",
+        "words": [
+          {
+            "word": "ધિયઃ",
+            "meaning": "thoughts, understanding"
+          },
+          {
+            "word": "યઃ",
+            "meaning": "who, which"
+          },
+          {
+            "word": "નઃ",
+            "meaning": "our"
+          },
+          {
+            "word": "પ્રચોદયાત્",
+            "meaning": "may it impel, may it inspire"
+          }
+        ]
+      }
+    }
+  ]
+}

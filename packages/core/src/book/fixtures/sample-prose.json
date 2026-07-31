@@ -1,0 +1,137 @@
+{
+  "formatVersion": 1,
+  "id": "sample-prose",
+  "title": {
+    "gu": "નમૂનારૂપ ગદ્ય પાઠ",
+    "en": "Sample Prose Discourse"
+  },
+  "subtitle": {
+    "en": "A synthetic fixture for the prose shape of the book format"
+  },
+  "language": "gu",
+  "script": "gujr",
+  "tradition": "none",
+  "contentVersion": "1.1.0",
+  "contentStatus": "draft",
+  "source": {
+    "edition": "Synthetic — written for this repository, not taken from any published edition",
+    "notes": "Exists to pin the prose shape of the format: nested divisions, prose leaves, a verse quotation inside a discourse, and a retired-ref alias map. Not scripture."
+  },
+  "license": {
+    "id": "CC0-1.0",
+    "holder": "Granthalaya"
+  },
+  "layers": [
+    {
+      "id": "gu",
+      "kind": "original",
+      "language": "gu",
+      "script": "gujr",
+      "label": {
+        "gu": "મૂળ",
+        "en": "Original"
+      }
+    },
+    {
+      "id": "en",
+      "kind": "translation",
+      "language": "en",
+      "script": "latn",
+      "label": {
+        "en": "English"
+      },
+      "attribution": "Written alongside the Gujarati for this fixture"
+    }
+  ],
+  "primaryLayer": "gu",
+  "structure": [
+    {
+      "kind": "section",
+      "id": "khand-1",
+      "number": "૧",
+      "title": {
+        "gu": "પ્રથમ ખંડ",
+        "en": "First Part"
+      },
+      "children": [
+        {
+          "kind": "chapter",
+          "id": "3",
+          "number": "૩",
+          "title": {
+            "gu": "સ્થિર ઓળખ વિશે",
+            "en": "On stable identity"
+          },
+          "children": [
+            {
+              "kind": "verse",
+              "id": "p1",
+              "form": "prose",
+              "layers": {
+                "gu": "આ પાઠ પુસ્તક-ફૉર્મેટની ચકાસણી માટે લખવામાં આવ્યો છે. તે કોઈ પ્રકાશિત ગ્રંથમાંથી લેવામાં આવ્યો નથી, અને તેને શાસ્ત્ર તરીકે વાંચવો નહીં.",
+                "en": "This passage was written to exercise the book format. It is taken from no published edition, and is not to be read as scripture."
+              },
+              "hash": "f1a64:46cda6a29ba0f5a2"
+            },
+            {
+              "kind": "verse",
+              "id": "p2",
+              "form": "prose",
+              "layers": {
+                "gu": "ગદ્યમાં દરેક ફકરો પોતે જ સૌથી નાનું સરનામું ધરાવતું એકમ છે. વાચકની નોંધ, રેખાંકન અને પુનરાવર્તન — બધું આ સ્થિર ઓળખ સાથે જોડાય છે, લખાણના સ્થાન સાથે નહીં.",
+                "en": "In prose, each paragraph is itself the smallest addressable unit. A reader's notes, highlights and revision all attach to this stable identity, never to a position in the text."
+              },
+              "hash": "f1a64:32c2c55c91d56b10"
+            },
+            {
+              "kind": "passage",
+              "id": "quote-1",
+              "title": {
+                "gu": "ઉદ્ધરણ",
+                "en": "Quotation"
+              },
+              "children": [
+                {
+                  "kind": "verse",
+                  "id": "v1",
+                  "number": "૧",
+                  "form": "verse",
+                  "layers": {
+                    "gu": "જ્યાં શબ્દ સ્થિર, ત્યાં સ્મૃતિ સ્થિર;",
+                    "en": "Where the word holds still, memory holds still;"
+                  },
+                  "hash": "f1a64:b5e3532e696c4ff6"
+                },
+                {
+                  "kind": "verse",
+                  "id": "v2",
+                  "number": "૨",
+                  "form": "verse",
+                  "layers": {
+                    "gu": "જ્યાં સ્મૃતિ સ્થિર, ત્યાં પાઠ અખંડ ॥",
+                    "en": "where memory holds still, the recitation is unbroken."
+                  },
+                  "hash": "f1a64:45fad4200506fd50"
+                }
+              ]
+            },
+            {
+              "kind": "verse",
+              "id": "p3",
+              "form": "prose",
+              "layers": {
+                "gu": "તેથી લખાણ સુધારવામાં આવે તોપણ વાચકનું કામ ટકી રહે છે.",
+                "en": "So even when the text is corrected, the reader's work survives."
+              },
+              "hash": "f1a64:3deaaeed3ef4a926"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "aliases": {
+    "sample-prose/khand-1/3#p0": "sample-prose/khand-1/3#p1",
+    "sample-prose/khand-1/3#p9": "sample-prose/khand-1/3"
+  }
+}

@@ -5,7 +5,8 @@
   "type": "module",
   "description": "Platform-pure TypeScript domain layer: book format, verse addressing, SRS, quiz engine. No React, no Bun/Node APIs, no I/O.",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./fixtures": "./src/fixtures.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
