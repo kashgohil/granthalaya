@@ -16,7 +16,7 @@
 | **Mobile app** | `apps/mobile` (Expo) | **End users — the product** | Reading, book install, recital, flashcards, quizzes, habits. Purely consumer-facing; no admin features, ever. |
 | **Web** | `apps/web` (TanStack Start) | Public + admin (you) | Promotional/landing content, book showcase pages; behind auth: the **admin studio** (proofing, layer authoring, catalog management). No consumer app on web. |
 | **API** | `apps/api` (**Elysia** on Bun) | All clients | Auth, book catalog & distribution, sync, TTS proxy, published-content serving. |
-| **Core domain** | `packages/core` | Shared | Book format, verse addressing, annotation/SRS/quiz models. Pure TS, runs everywhere (mobile, api, studio). |
+| **Core domain** | `packages/core` | Shared | Book format, verse addressing, annotation/SRS/quiz models. Platform-pure TS, runs everywhere (mobile, api, studio). |
 | **Pipeline** | `packages/pipeline` | Internal tooling | PDF triage, OCR, normalization, packaging CLI. Bun/TS-first; free to shell out to whatever is optimal per step (e.g. external OCR services, Python tools). Surfaced only through the admin studio + CLI. |
 
 **The flow:** PDFs → `packages/pipeline` + admin studio (web) → published book packages served
@@ -101,19 +101,28 @@ by `apps/api` → installed and experienced in `apps/mobile`.
   typed off the Elysia instance — an unknown route or a changed response shape is a compile
   error, verified by a throwaway probe against both. Web builds and Metro bundles the client.
 
-### P0.2 Book format & verse addressing spec ⬜
+### P0.2 Book format & verse addressing spec ✅
 The most important design decision in the project.
-- [ ] Write `docs/book-format.md`: canonical JSON book package — manifest (id, title, source
+- [x] Write `docs/book-format.md`: canonical JSON book package — manifest (id, title, source
       edition, language, license), structure tree (book → section/chapter → passage → verse),
       content layers per verse (original, transliteration, word-meanings, translation, commentary)
-- [ ] Stable ID scheme (e.g. `vachanamrut/gadhada-1/21#v3`) that survives re-extraction and
+- [x] Stable ID scheme (e.g. `vachanamrut/gadhada-1/21#v3`) that survives re-extraction and
       content corrections; content-hash per verse for change detection
-- [ ] Support both verse-structured texts (shlokas) and prose texts (discourses) — passages
+- [x] Support both verse-structured texts (shlokas) and prose texts (discourses) — passages
       with optional verse subdivision
-- [ ] Zod schemas + TS types in `packages/core`; validator CLI (`bun run validate <book>`)
-- [ ] Hand-author one tiny sample book (a short stotra) as the reference fixture
+- [x] Zod schemas + TS types in `packages/core`; validator CLI (`bun run validate <book>`)
+- [x] Hand-author one tiny sample book (a short stotra) as the reference fixture
 - **Done when:** the sample book validates, round-trips through the schema, and every layer
   is addressable by stable ID.
+
+  *Landed 2026-07-31.* `packages/core/src/book/` holds the schemas (`schema.ts`), the ref
+  grammar (`refs.ts`), traversal (`tree.ts`), content hashing (`hash.ts`) and the integrity
+  checks a schema can't express (`validate.ts`). Two fixtures ship behind
+  `@granthalaya/core/fixtures`: `gayatri-mantra` (verse-structured, four layers) and
+  `sample-prose` (nested divisions, prose leaves, a verse quotation mid-discourse, an alias
+  map). `bun run validate <path>` reports issues against verse refs and exits non-zero.
+  Both fixtures are `contentStatus: "draft"` — neither is proofed, and `sample-prose` is
+  synthetic by design.
 
 ### P0.3 Gujarati typography & rendering baseline ⬜
 Codify the non-negotiables once. Primary target: React Native (the consumer surface); web
@@ -187,10 +196,16 @@ Translations, word-meanings, glossary — the 5-layer verse stack.
 - [ ] `apps/api`: catalog endpoint (published books + metadata) and versioned book-package
       download endpoints
 - [ ] Package integrity (content hash) and semver for content corrections; immutable versions
+- [ ] **Cross-version ID audit, blocking at publish time:** diff the candidate package against
+      the last published version and refuse any verse ref that disappeared without an entry in
+      `aliases`; warn on ID churn that a `patch`/`minor` bump doesn't justify. P0.2's
+      `validateBook` only sees one package in isolation, so nothing today stops a careless
+      republish from orphaning every annotation, highlight and SRS item keyed to a dropped ref
 - [ ] Studio "publish" action pushes an approved package to the catalog
-- [ ] Client install contract documented: download, verify, store locally (SQLite on mobile)
+- [ ] Client install contract documented: download, verify, store locally (SQLite on mobile);
+      annotations rewritten through `aliases` on version upgrade, orphans surfaced not dropped
 - **Done when:** the studio can publish a book and a test client can list, download, and
-  verify it.
+  verify it — and a republish that drops a verse ref without an alias is rejected.
 
 ---
 
@@ -488,9 +503,25 @@ Each mode is a self-contained exercise over a recital item.
 | 2026-07-31 | **Biome across the whole repo**, including `apps/mobile` (replaced `expo lint`) | One formatter/linter beats eslint-on-mobile + biome-on-web; nested `biome.json` files `extend: "//"` |
 | 2026-07-31 | **No GitHub Actions CI yet** — `check` / `typecheck` / `test` are run locally | Solo project pre-R1; CI adds process overhead without catching anything a local run wouldn't. Revisit when there's a second contributor, or at R2 when TestFlight builds start |
 | 2026-07-31 | API on **:3001**, web dev server keeps :3000; both **fail on a taken port** rather than hopping (`reusePort: false`, `--strictPort`) | Both run together under root `bun run dev`. The API's CORS allowlist is pinned to origins, so a silently relocated dev server resurfaces as a confusing CORS error. Bun's default `SO_REUSEPORT` also lets two API instances share a port and split traffic |
+| 2026-07-31 | **"Verse" means *smallest addressable unit*** — a shloka, a line of an aarti, or a paragraph of a prose discourse. `form: "verse" \| "prose"` carries the typographic difference | A separate `paragraph` type would fork highlights, SRS, audio sync and quiz generation into two code paths for no gain: they all want "the atom" and don't care about literary form |
+| 2026-07-31 | A book package is **one `book.json`**, immutable once published; the studio's editable state is a separate database | The package is a build artifact. One file is trivial to hash, sign, diff and validate, and mobile ingests it into SQLite at install so file layout doesn't affect runtime |
+| 2026-07-31 | Layers are **declared in the manifest**, not five fixed fields | Supports two translations side by side, per-layer attribution and licence (translations are often under different rights), and a reader UI built from data instead of a hardcoded list |
+| 2026-07-31 | Manifest `layers` is an **ordered array** of declarations (each with its own `id`), not a map; declaration order is the reader's toggle order | JSON objects are unordered by spec, so a map would bind layer order to JavaScript's insertion-order semantics — which a Python/Swift step need not share, and which JS itself breaks for a numeric layer id. Reordering in the studio becomes moving an element, not renumbering |
+| 2026-07-31 | `primaryLayer` must be a layer of kind `original` | It's what search, audio alignment and memorization run against. Letting it point at a translation would quietly make an apparatus layer canonical |
+| 2026-07-31 | **Control characters are rejected by the schema** — `\n` allowed in verse text, nothing else in C0/C1, and no control characters at all in titles, numbering and glosses | OCR and PDF extraction emit form feeds, CRs and stray separators routinely. As a schema rule the pipeline *must* normalize; as a convention it would only be expected to. Also guarantees the verse hash's separators can't appear in the text it separates |
+| 2026-07-31 | Retired refs go in a top-level **`aliases` map** (old ref → successor), not per-verse `formerIds` | A per-verse field can't express a deleted verse. The map handles merges, splits and deletions uniformly, and is what a client replays over local annotations on update |
+| 2026-07-31 | **Two hashes:** per-verse FNV-1a 64 for change detection, SHA-256 over the package for integrity | Change detection must run in `packages/core`, which has no crypto API and must behave identically in Hermes. Integrity is a real security boundary and belongs in the pipeline/API where platform crypto exists |
+| 2026-07-31 | `contentStatus` (`draft`/`proofed`/`published`) is a **required manifest field**; the catalog serves only `published` | Makes the P1.3 proofing gate structural rather than procedural — nothing unverified can be mistaken for scripture just because it validates |
+| 2026-07-31 | **Zod is a dependency of `packages/core`** — "zero runtime deps" restated as "no *platform* deps (no React, no Bun/Node APIs, no I/O)" | Schemas are the single source of truth for the format and `z.infer` keeps types from drifting; the studio reuses them for form validation |
 
 ## Changelog
 
+- **2026-07-31** — **P0.2 landed.** `docs/book-format.md` plus the implementation in
+  `packages/core/src/book/`: Zod schemas, the `book/div/div#verse` ref grammar, tree
+  traversal, per-verse content hashing, and integrity validation. `bun run validate <path>`
+  in the pipeline CLI. Two reference fixtures (`gayatri-mantra`, `sample-prose`) cover the
+  verse and prose shapes and are round-tripped in tests.
+  Next: **P0.3**, the Gujarati typography & rendering baseline.
 - **2026-07-31** — **P0.1 landed.** Bun workspaces across `apps/*` + `packages/*`; new
   `apps/api` (Elysia) with a `/health` route; `packages/core` and `packages/pipeline`
   scaffolded; Eden typed clients wired into mobile and web; shared `tsconfig.base.json` and

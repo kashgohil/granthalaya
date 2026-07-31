@@ -12,7 +12,7 @@ slice checkboxes/status markers updated as work lands.
 | `apps/mobile` | Expo (expo-router) app — **the consumer product**: reading, book install, recital, flashcards, quizzes | End users only; no admin features |
 | `apps/web` | TanStack Start + Vite + Tailwind 4 — promotional site + admin studio (PDF proofing, layer authoring, publishing) behind auth | Public visitors + admin |
 | `apps/api` | Elysia (Bun) API — auth, book catalog/distribution, sync, TTS proxy (scaffolded in P0.1) | All clients, via typed Eden client |
-| `packages/core` | Pure TS domain: book format/Zod schemas, verse addressing, SRS, quiz engine. Zero runtime deps; shared by mobile, web, api | — |
+| `packages/core` | Platform-pure TS domain: book format/Zod schemas, verse addressing, SRS, quiz engine. Zod is its only dependency; shared by mobile, web, api | — |
 | `packages/pipeline` | Internal CLI tooling: PDF triage, OCR, normalization, packaging. Never user-facing | Admin |
 
 The content flow: PDFs → `packages/pipeline` + admin studio (web) → published packages served
@@ -39,6 +39,7 @@ bun test                 # bun:test across every workspace
 
 bun run dev              # api (:3001) + web (:3000) together
 bun run dev:api / dev:web / dev:mobile
+bun run validate <path>  # check a book package against docs/book-format.md
 
 # apps/api (run from apps/api)
 bun run dev              # Elysia on :3001, watch mode
