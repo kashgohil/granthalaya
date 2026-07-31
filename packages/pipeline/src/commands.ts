@@ -8,6 +8,7 @@
 /** Every command the CLI understands, mapped to its one-line help text. */
 export const COMMANDS = {
 	help: "Show this help text",
+	validate: "Check a book package against the format spec (validate <path>...)",
 	version: "Print pipeline and core versions",
 } as const;
 

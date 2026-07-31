@@ -12,3 +12,11 @@
 export type { CommandName, Invocation } from "./commands.ts";
 export { COMMANDS, parseArgv, usage } from "./commands.ts";
 export { PIPELINE_VERSION } from "./meta.ts";
+export type { ValidationReport } from "./validate.ts";
+export {
+	formatValidationReport,
+	PACKAGE_FILENAME,
+	resolvePackagePath,
+	runValidate,
+	validatePackageAt,
+} from "./validate.ts";
