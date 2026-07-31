@@ -11,7 +11,7 @@
   "contentStatus": "draft",
   "source": {
     "edition": "Traditional; Rigveda 3.62.10",
-    "notes": "Reference fixture for the book format. Public-domain text, but hand-entered and not proofed against a printed edition — see contentStatus."
+    "notes": "Reference fixture for the book format. Public-domain text. The Gujarati transcription and its ISO 15919 line were reviewed and confirmed by a Gujarati reader on 2026-07-31, but have not been collated against a printed edition — see contentStatus."
   },
   "license": {
     "id": "public-domain"
