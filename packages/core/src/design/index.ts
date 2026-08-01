@@ -1,0 +1,24 @@
+/**
+ * The design language (P0.4) — spec in `docs/design-language.md`.
+ *
+ * Colour, spacing, type scale and generated covers, as platform-neutral data. The Expo app
+ * consumes it directly; the web takes the same values as CSS variables through
+ * `designTokensCss` and `bun run design:sync`.
+ */
+
+export type { GrainSpec, MarkColor, MarkColors, ThemeName, ThemeTokens } from "./themes.ts";
+export {
+	isThemeName,
+	MARK_COLORS,
+	THEME_NAMES,
+	theme,
+	themeForColorScheme,
+} from "./themes.ts";
+export type {
+	RadiusToken,
+	ResolvedTypeStyle,
+	SpacingToken,
+	TypeStyleSpec,
+	TypeToken,
+} from "./tokens.ts";
+export { MOTION, RADIUS, resolveTypeStyle, SPACING, TYPE_SCALE } from "./tokens.ts";
