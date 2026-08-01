@@ -17,6 +17,12 @@ export {
 } from "./akshara.ts";
 export type { FontFace, FontFamilySpec, FontRole, FontWeight } from "./fonts.ts";
 export { FONT_FACES, fontFaceId, fontFamily, fontFamilyStack } from "./fonts.ts";
+export type {
+	OrthographyReport,
+	OrthographyViolation,
+	OrthographyViolationKind,
+} from "./orthography.ts";
+export { checkOrthography, describeViolation, isNukta, isVowelSign } from "./orthography.ts";
 export { DANDA, DOUBLE_DANDA, isDanda, protectDanda } from "./punctuation.ts";
 export type { ForeignScript, ScriptProfile, ScriptTally } from "./script.ts";
 export { profileScript, scriptOf, scriptShare } from "./script.ts";
