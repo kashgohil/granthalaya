@@ -7,6 +7,7 @@
     "@expo/ui": "~57.0.8",
     "@granthalaya/api": "workspace:*",
     "@granthalaya/core": "workspace:*",
+    "@react-native-async-storage/async-storage": "2.2.0",
     "expo": "~57.0.9",
     "expo-constants": "~57.0.8",
     "expo-device": "~57.0.1",
