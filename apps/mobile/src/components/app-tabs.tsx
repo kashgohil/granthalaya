@@ -28,6 +28,14 @@ export default function AppTabs() {
 					renderingMode="template"
 				/>
 			</NativeTabs.Trigger>
+
+			{/* The P0.3 rendering test screen. It is a QA surface, not a product one — the
+			    reason it is a tab is that the check has to happen on a real device, where
+			    there is no dev menu to route from. P0.4 replaces this shell. */}
+			<NativeTabs.Trigger name="typography">
+				<NativeTabs.Trigger.Label>Type</NativeTabs.Trigger.Label>
+				<NativeTabs.Trigger.Icon sf="textformat" drawable="ic_menu_sort_alphabetically" />
+			</NativeTabs.Trigger>
 		</NativeTabs>
 	);
 }
