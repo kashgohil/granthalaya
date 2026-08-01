@@ -13,3 +13,4 @@
  */
 export * from "./book/index.ts";
 export { CORE_VERSION } from "./meta.ts";
+export * from "./text/index.ts";
