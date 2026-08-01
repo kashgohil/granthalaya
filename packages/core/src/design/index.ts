@@ -14,6 +14,7 @@ export {
 	coverColourway,
 	coverFor,
 } from "./cover.ts";
+export { designTokensCss, metricCssVariables, themeCssVariables } from "./css.ts";
 export type { GrainSpec, MarkColor, MarkColors, ThemeName, ThemeTokens } from "./themes.ts";
 export {
 	isThemeName,
