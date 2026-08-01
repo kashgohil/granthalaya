@@ -124,18 +124,36 @@ The most important design decision in the project.
   Both fixtures are `contentStatus: "draft"` — neither is proofed, and `sample-prose` is
   synthetic by design.
 
-### P0.3 Gujarati typography & rendering baseline ⬜
+### P0.3 Gujarati typography & rendering baseline 🟨
 Codify the non-negotiables once. Primary target: React Native (the consumer surface); web
 needs it too for the studio's preview and the promo site.
-- [ ] Font pipeline: Rasa (body) + Noto Serif Gujarati (fallback) + Noto Sans Gujarati/Mukta
+- [x] Font pipeline: Rasa (body) + Noto Serif Gujarati (fallback) + Noto Sans Gujarati/Mukta
       Vaani (UI); bundled via `expo-font` on mobile, subsetted/self-hosted on web
-- [ ] `packages/core` text-rules module: line-height 1.7–2.0, base size +10–15% vs Latin, no
+- [x] `packages/core` text-rules module: line-height 1.7–2.0, base size +10–15% vs Latin, no
       letter-spacing, danda no-break handling, highlight-not-underline, akshara-safe
       segmentation helpers (never split a conjunct)
-- [ ] Mobile render test screen: conjuncts, matras above/below, danda, mixed Gujarati/Latin —
-      verified on real iOS and Android devices (not just simulator)
-- [ ] Web render test page for the same fixtures (studio preview parity)
+- [x] Mobile render test screen: conjuncts, matras above/below, danda, mixed Gujarati/Latin
+- [x] iOS simulator: Gujarati renders correctly (checked 2026-08-01). Worth more than the
+      usual simulator caveat allows, because the faces are bundled rather than resolved from
+      the system — this confirms the `expo-font` registration keys, conjunct shaping and the
+      core metrics all reach the screen
+- [ ] **Verify on real iOS and Android hardware.** What the simulator still cannot show:
+      system font fallback for glyphs Rasa lacks (the simulator falls back through macOS's
+      fonts, a device through iOS's), and rendering at true device DPI
+- [ ] **Android has not been run at all** — no emulator, no build. `includeFontPadding` and
+      the tab's `ic_menu_sort_alphabetically` drawable are unverified assumptions
+- [x] Web render test page for the same fixtures (studio preview parity)
 - **Done when:** the fixtures render with no mark collisions on iOS, Android, and web.
+
+  *Code landed 2026-07-31; awaiting the device check.* `packages/core/src/text/` holds the
+  rules (`typography.ts` — bands, size scale, and `checkTextStyle`, which turns each rule
+  into a testable violation), the akshara segmenter (`akshara.ts`), danda protection
+  (`punctuation.ts`), the font stack (`fonts.ts`) and the render fixtures (`specimen.ts`,
+  exported via `@granthalaya/core/fixtures`). Seven font faces are committed —
+  TrueType per weight for Metro, subset WOFF2 plus a generated `fonts.css` for Vite —
+  synced by `bun run fonts:sync`. Both surfaces render the same specimens through the same
+  core calls: the mobile **Type** tab (`apps/mobile/src/app/typography.tsx`) and the web
+  `/typography` route. Spec: `docs/typography.md`.
 
 ### P0.4 Design language & mobile app shell ⬜
 The signature look, before any features — on the surface that matters.
@@ -513,9 +531,33 @@ Each mode is a self-contained exercise over a recital item.
 | 2026-07-31 | **Two hashes:** per-verse FNV-1a 64 for change detection, SHA-256 over the package for integrity | Change detection must run in `packages/core`, which has no crypto API and must behave identically in Hermes. Integrity is a real security boundary and belongs in the pipeline/API where platform crypto exists |
 | 2026-07-31 | `contentStatus` (`draft`/`proofed`/`published`) is a **required manifest field**; the catalog serves only `published` | Makes the P1.3 proofing gate structural rather than procedural — nothing unverified can be mistaken for scripture just because it validates |
 | 2026-07-31 | **Zod is a dependency of `packages/core`** — "zero runtime deps" restated as "no *platform* deps (no React, no Bun/Node APIs, no I/O)" | Schemas are the single source of truth for the format and `z.infer` keeps types from drifting; the studio reuses them for form validation |
+| 2026-07-31 | **Akshara segmentation is hand-written in `packages/core`**, not delegated to `Intl.Segmenter` | Hermes doesn't ship `Intl.Segmenter`, and the reader is the surface that needs it most. Writing it also lets the two Indic scripts the format admits share one table-driven implementation that behaves identically in the app, the studio and the pipeline |
+| 2026-07-31 | **ZWNJ ends an akshara; ZWJ does not** | They request opposite things: ZWJ selects a half-form that renders as one shape, ZWNJ the dead-consonant form that renders as two. A cut is safe exactly where the text already renders as two shapes. Matches Unicode 15.1's conjunct-cluster rule (UAX #29, GB9c) |
+| 2026-07-31 | Typography rules are **enforced by `checkTextStyle`**, and the line-height band is **clamped rather than recommended** | "We follow the typography rules" is otherwise a habit that erodes screen by screen. As a function it is a unit test, and the P2.3 settings sheet can hand over whatever the slider says without being able to produce an illegal page |
+| 2026-07-31 | `protectDanda` is a **display transform, never written back into a package** | The package's text is what `hashVerse` covers and what search and audio alignment run against; a no-break space stored in it would change every verse hash and make stored text differ from the text that was proofed |
+| 2026-07-31 | **Font files are committed**, synced from Google's CSS API by `bun run fonts:sync`: TrueType per weight for mobile, subset WOFF2 for web | A build must not depend on a CDN, and a font that silently changed version between two builds would reflow every book. The artefacts differ because the platforms do — React Native cannot synthesise a weight, so each weight is its own registered family; the browser can, and gains per-writing-system subsets on top |
+| 2026-07-31 | Fonts registered at runtime with **`useFonts`, not the `expo-font` config plugin** | The plugin registers faces under their internal family names, which differ per platform and cannot express a weight on iOS. Explicit keys are identical on iOS, Android and web and work in Expo Go, which has no native build. Revisit at P0.4 when EAS builds make prebuild part of the flow |
+| 2026-07-31 | **Noto Sans Gujarati** is the single bundled UI face; Mukta Vaani stays documented as its substitute | Shipping both costs ~350 KB on device to serve a preference nobody has expressed yet |
+| 2026-08-01 | Explicit **`com.granthalaya.app`** bundle identifier / Android package, and the `granthalaya` URI scheme | Expo derives `com.anonymous.<slug>` when these are unset, so with `slug: "mobile"` this project collided with another local Expo project already installed under the same id — `expo start --ios` launched *that* app instead. Placeholder identifiers are only safe until the second project exists |
+| 2026-08-01 | **Development happens on a dev build, not Expo Go** | The newest published Expo Go for SDK 57 is client 57.0.5, and this project is on expo 57.0.9. Same SDK major, so Expo Go loads it and then segfaults inside `react-native-worklets` on a JSI ABI mismatch. `expo install --check` confirms 57.0.9's dependency set is the correct one, so the fix is to stop using a client that lags the SDK, not to pin the app down to it |
+| 2026-08-01 | **`expo-modules-jsi@57.0.4` is patched locally** (`patches/`, via `bun patch`) | It does not compile under Xcode 26.2 / Swift 6.2.3: one `guard` uses `abs(_:)`, whose overload set the compiler will no longer resolve. `.magnitude` on a `Double` is unambiguous and semantically identical. Both the package and `expo` are already at their newest published versions, so there is nothing to upgrade to — drop the patch once upstream fixes it |
 
 ## Changelog
 
+- **2026-08-01** — **The mobile app runs on a dev build.** Gave the app its own identity
+  (`com.granthalaya.app`, scheme `granthalaya`) after the placeholder `com.anonymous.mobile`
+  collided with another local project; established that Expo Go cannot run this SDK 57.0.9
+  project (its client lags at 57.0.5 and segfaults in worklets); and patched the one Swift
+  line in `expo-modules-jsi` that Xcode 26.2 refuses to compile. `bunx expo run:ios` now
+  builds, installs and launches. The P0.3 screens are reachable via the **Type** tab.
+- **2026-07-31** — **P0.3 code landed; the device check is outstanding.**
+  `docs/typography.md` plus `packages/core/src/text/`: the rules as enforceable data
+  (`checkTextStyle`), an akshara segmenter for Gujarati and Devanagari, danda protection,
+  the font stack, and the render fixtures. Seven font faces committed for both platforms via
+  `bun run fonts:sync`. A rendering test screen on mobile (the **Type** tab) and at
+  `/typography` on web, rendering the same specimens through the same core calls.
+  Next: **look at that screen on a real iPhone and a real Android phone** — that is what
+  closes P0.3 — then **P0.4**, the design language & mobile app shell.
 - **2026-07-31** — **P0.2 landed.** `docs/book-format.md` plus the implementation in
   `packages/core/src/book/`: Zod schemas, the `book/div/div#verse` ref grammar, tree
   traversal, per-verse content hashing, and integrity validation. `bun run validate <path>`

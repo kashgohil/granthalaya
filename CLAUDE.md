@@ -40,6 +40,7 @@ bun test                 # bun:test across every workspace
 bun run dev              # api (:3001) + web (:3000) together
 bun run dev:api / dev:web / dev:mobile
 bun run validate <path>  # check a book package against docs/book-format.md
+bun run fonts:sync       # re-download the Gujarati font stack into both apps (output is committed)
 
 # apps/api (run from apps/api)
 bun run dev              # Elysia on :3001, watch mode
@@ -53,6 +54,7 @@ bun run generate-routes  # regenerate TanStack Router route tree
 # apps/mobile (run from apps/mobile)
 bun run start            # expo start
 bun run ios / android    # run on simulator/device
+bunx expo run:ios        # build + install the dev build (needed after a native dep changes)
 
 # packages/pipeline
 bun run --filter '@granthalaya/pipeline' cli   # admin CLI (help / version)
@@ -110,7 +112,9 @@ next to the code as `*.test.ts`.
   Latin; **never** apply `letter-spacing` to Gujarati (splits conjuncts); ragged-right, not
   force-justified; highlights as background color, never underline; never split text inside
   an akshara (conjunct cluster). Body font: Rasa; fallback Noto Serif Gujarati; UI: Noto Sans
-  Gujarati / Mukta Vaani.
+  Gujarati / Mukta Vaani. Spec: `docs/typography.md` (P0.3) — the rules live in
+  `packages/core/src/text/`, so resolve metrics with `resolveTextStyle` and cut text with
+  `aksharaSpans` rather than restating either by hand. `checkTextStyle` enforces them.
 - **Scripture fidelity:** book content is published only after human proofing in the studio;
   never trust text extracted from Gujarati PDFs' embedded fonts — render pages to images and
   OCR instead.
