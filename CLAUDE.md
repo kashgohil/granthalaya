@@ -41,6 +41,7 @@ bun run dev              # api (:3001) + web (:3000) together
 bun run dev:api / dev:web / dev:mobile
 bun run validate <path>  # check a book package against docs/book-format.md
 bun run fonts:sync       # re-download the Gujarati font stack into both apps (output is committed)
+bun run design:sync      # regenerate the paper-grain tile + apps/web tokens.css from packages/core/src/design
 
 # apps/api (run from apps/api)
 bun run dev              # Elysia on :3001, watch mode
@@ -93,7 +94,10 @@ next to the code as `*.test.ts`.
 - Biome for lint/format (not eslint/prettier)
 
 ### apps/mobile
-- expo-router screens in `src/app/`; shared UI in `src/components/`
+- expo-router screens in `src/app/`: `(tabs)/` is the four-tab shell (Today · Library ·
+  Study · Settings), the root `_layout.tsx` is a stack for everything pushed over it
+- shared UI in `src/components/` (`ui/` is the design-language base kit); theme context in
+  `src/theme/`
 - Import alias `@/*` → `./src/*`
 - `src/types/globals.d.ts` is the committed stand-in for Expo's gitignored `expo-env.d.ts`,
   so `bun run typecheck` works on a clean checkout — don't delete it
@@ -118,5 +122,12 @@ next to the code as `*.test.ts`.
 - **Scripture fidelity:** book content is published only after human proofing in the studio;
   never trust text extracted from Gujarati PDFs' embedded fonts — render pages to images and
   OCR instead.
+- **Design language:** never write a hex value or a font size in a component. Colour comes
+  from `theme(name)` (four themes: White/Sepia/Dark/Black), size from
+  `resolveTypeStyle(token, script)`, and spacing/radii/motion from `SPACING`/`RADIUS`/
+  `MOTION` — all in `packages/core/src/design/`. A type token names the *Latin-equivalent*
+  size; Gujarati's is derived, which is what keeps the typography rules true everywhere.
+  Spec: `docs/design-language.md` (P0.4). The web takes the same tokens as CSS variables via
+  `bun run design:sync`.
 - **Local-first mobile:** reading, annotations, and study must work fully offline; the API is
   for sync and distribution, not for rendering the reading path.

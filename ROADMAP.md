@@ -152,18 +152,37 @@ needs it too for the studio's preview and the promo site.
   exported via `@granthalaya/core/fixtures`). Seven font faces are committed —
   TrueType per weight for Metro, subset WOFF2 plus a generated `fonts.css` for Vite —
   synced by `bun run fonts:sync`. Both surfaces render the same specimens through the same
-  core calls: the mobile **Type** tab (`apps/mobile/src/app/typography.tsx`) and the web
-  `/typography` route. Spec: `docs/typography.md`.
+  core calls: `apps/mobile/src/app/typography.tsx` (a tab until P0.4, now opened from
+  Settings) and the web `/typography` route. Spec: `docs/typography.md`.
 
-### P0.4 Design language & mobile app shell ⬜
+### P0.4 Design language & mobile app shell 🟨
 The signature look, before any features — on the surface that matters.
-- [ ] Design tokens: paper/sepia palette with subtle grain, White/Sepia/Dark/Black themes,
+- [x] Design tokens: paper/sepia palette with subtle grain, White/Sepia/Dark/Black themes,
       spacing & type scale (Gujarati-aware); tokens shared where practical between RN and web
-- [ ] Mobile app shell: expo-router navigation skeleton, theme switching, base components
+- [x] Mobile app shell: expo-router navigation skeleton, theme switching, base components
       in the design language
-- [ ] Generated book covers: paper texture + Gujarati display type component (RN + web impls)
-- [ ] EAS project setup: internal distribution builds so the shell installs on real devices
+- [x] Generated book covers: paper texture + Gujarati display type component (RN + web impls)
+- [x] EAS config: `eas.json` with development/preview/production internal-distribution profiles
+- [ ] **Link the EAS project and produce a build** — `eas login && eas init && eas build`
+      needs the owner's Expo account, so it can't be done from here; the profiles are ready
+      and the steps are in `apps/mobile/AGENTS.md`
+- [ ] **App icon and wordmark.** The shell still ships Expo's placeholder icon; only the
+      splash and the adaptive-icon background are ours. Store assets are P8.2, but the icon
+      is what "feels like this product" on a home screen
+- [ ] **Android has still not been run** (inherited from P0.3) — the tab drawables, the
+      grain tile's `resizeMode="repeat"`, and `includeFontPadding` are all unverified there
 - **Done when:** an empty shell app on a real phone already feels like *this product*.
+
+  *Code landed 2026-08-01; verified on the iOS simulator, awaiting a device build.*
+  `packages/core/src/design/` holds the four themes (`themes.ts`), the spacing/radius/motion
+  and type scale (`tokens.ts`), the generated-cover derivation (`cover.ts`) and the CSS
+  emitter (`css.ts`). `bun run design:sync` writes the paper-grain tile into both apps and
+  `apps/web/src/styles/tokens.css` from those tokens. The mobile shell is four native tabs
+  (Today · Library · Study · Settings) over a stack, with a persisted theme preference and a
+  base kit — `Screen`, `AppText`, `Card`, `List`/`ListRow`, `Button`, `Pill`, `Meter`,
+  `EmptyState`, `BookCover`, `PaperGrain`, `ThemePicker`. The Expo starter template is gone.
+  The web renders the same language from the same tokens at `/design`. Spec:
+  `docs/design-language.md`.
 
 ---
 
@@ -541,21 +560,45 @@ Each mode is a self-contained exercise over a recital item.
 | 2026-08-01 | Explicit **`com.granthalaya.app`** bundle identifier / Android package, and the `granthalaya` URI scheme | Expo derives `com.anonymous.<slug>` when these are unset, so with `slug: "mobile"` this project collided with another local Expo project already installed under the same id — `expo start --ios` launched *that* app instead. Placeholder identifiers are only safe until the second project exists |
 | 2026-08-01 | **Development happens on a dev build, not Expo Go** | The newest published Expo Go for SDK 57 is client 57.0.5, and this project is on expo 57.0.9. Same SDK major, so Expo Go loads it and then segfaults inside `react-native-worklets` on a JSI ABI mismatch. `expo install --check` confirms 57.0.9's dependency set is the correct one, so the fix is to stop using a client that lags the SDK, not to pin the app down to it |
 | 2026-08-01 | **`expo-modules-jsi@57.0.4` is patched locally** (`patches/`, via `bun patch`) | It does not compile under Xcode 26.2 / Swift 6.2.3: one `guard` uses `abs(_:)`, whose overload set the compiler will no longer resolve. `.magnitude` on a `Double` is unambiguous and semantically identical. Both the package and `expo` are already at their newest published versions, so there is nothing to upgrade to — drop the patch once upstream fixes it |
+| 2026-08-01 | **Sindoor terracotta is the single accent**, shifting per theme (`#A65328` light, `#DE9A55` dark) | One chromatic voice, and one that belongs to the subject — kumkum and cloth bindings — rather than to a brand palette. It shifts because a colour that holds 4.5:1 on paper is washed out on black, and vice versa |
+| 2026-08-01 | Themes are **four palettes, not four skins**; `system` resolves only to White or Dark | A wash that reads as a gentle mark on paper reads as a smear on a black screen, so every theme sets its own ink, hairline and highlight values. Sepia and Black are reader choices the OS has no way to express, so exposing them as "automatic" would be a lie |
+| 2026-08-01 | **Contrast is a unit test** (`themes.test.ts`), not a review note | Every pairing the components actually produce is checked in all four themes — including ink on each highlight wash, where a failure would make a marked verse harder to read than an unmarked one. It caught three of the first palette's values |
+| 2026-08-01 | **A type token stores the Latin-equivalent size**; Gujarati's is derived by `resolveTypeStyle` | It is the only way the P0.3 rules survive a design system: a screen cannot pick a Gujarati size at all, so +12% and the 1.7–2.0 band hold by construction rather than by discipline. Tracking exists on one token and is dropped for Indic scripts |
+| 2026-08-01 | **Covers are generated from the book id**, never authored | These editions have no cover art, and inventing some would be a small fiction in a project whose first principle is fidelity. `fnv1a64(id) % 6` picks the cloth; the title is the artwork. Keyed on the id alone so re-proofing a book never repaints its cover |
+| 2026-08-01 | **One mid-grey grain tile**, generated and committed; Black theme has none | Mid-grey does both jobs — it darkens into fibre over paper and lightens into film grain over night themes — so React Native, which has no blend modes, gets the same texture as the web with only an opacity. On a true black OLED panel grain is noise on pixels that would otherwise be off |
+| 2026-08-01 | Tabs are **Today · Library · Study · Settings**, on the platform's native tab bar | Fixed now so P2–P7 have somewhere to land. Native gets the blur, scroll-edge behaviour and accessibility for free; a devotional reading app gains nothing from a bespoke navigation control |
+| 2026-08-01 | The theme preference is persisted with **`@react-native-async-storage/async-storage`** | The first native dependency added beyond Expo's own. A key-value preference does not justify SQLite, and the splash is held until the stored value is read back so nobody sees a white frame before their Dark theme arrives |
+| 2026-08-01 | **The `expo-font` config plugin is still not used** (revisit from P0.3 closed) | EAS builds now make prebuild part of the flow, which was the reason to revisit — but the original objection stands: the plugin registers faces under internal family names that differ per platform and cannot express a weight on iOS. `useFonts` with explicit keys stays |
+| 2026-08-01 | The web's **Google-CDN font import is gone**; Fraunces/Manrope replaced by the bundled stack | It contradicted P0.3's own decision that a build must not depend on a CDN, and it meant the studio previewed books in faces the app does not have. The site now sets everything in Rasa and Noto Sans Gujarati, from `tokens.css` and `fonts.css` |
 
 ## Changelog
 
+- **2026-08-01** — **P0.4's code landed: the design language and the app shell.**
+  `packages/core/src/design/` — four themes (White/Sepia/Dark/Black) around a sindoor
+  terracotta accent, a Gujarati-aware type scale that derives every size from a
+  Latin-equivalent token, spacing/radius/motion, and generated book covers keyed to the book
+  id. Contrast is enforced by unit test in all four themes. `bun run design:sync` generates
+  the paper-grain tile for both apps and `tokens.css` for the web. The Expo starter template
+  is gone: the app is now four native tabs over a stack, with a persisted theme preference,
+  a base component kit, and honest empty states. The web renders the same language from the
+  same tokens at `/design`, and shadcn/ui's variables now point at them. `eas.json` ships
+  three internal-distribution profiles. Spec: `docs/design-language.md`.
+  Next: **link the EAS project and install the shell on a real phone** — that, plus an app
+  icon, is what closes P0.4 — then **P1.1**, PDF triage and inventory.
 - **2026-08-01** — **The mobile app runs on a dev build.** Gave the app its own identity
   (`com.granthalaya.app`, scheme `granthalaya`) after the placeholder `com.anonymous.mobile`
   collided with another local project; established that Expo Go cannot run this SDK 57.0.9
   project (its client lags at 57.0.5 and segfaults in worklets); and patched the one Swift
   line in `expo-modules-jsi` that Xcode 26.2 refuses to compile. `bunx expo run:ios` now
-  builds, installs and launches. The P0.3 screens are reachable via the **Type** tab.
+  builds, installs and launches. The P0.3 screens were reachable via a **Type** tab,
+  which P0.4 replaced with a row in Settings.
 - **2026-07-31** — **P0.3 code landed; the device check is outstanding.**
   `docs/typography.md` plus `packages/core/src/text/`: the rules as enforceable data
   (`checkTextStyle`), an akshara segmenter for Gujarati and Devanagari, danda protection,
   the font stack, and the render fixtures. Seven font faces committed for both platforms via
-  `bun run fonts:sync`. A rendering test screen on mobile (the **Type** tab) and at
-  `/typography` on web, rendering the same specimens through the same core calls.
+  `bun run fonts:sync`. A rendering test screen on mobile (reachable from Settings since
+  P0.4) and at `/typography` on web, rendering the same specimens through the same core
+  calls.
   Next: **look at that screen on a real iPhone and a real Android phone** — that is what
   closes P0.3 — then **P0.4**, the design language & mobile app shell.
 - **2026-07-31** — **P0.2 landed.** `docs/book-format.md` plus the implementation in
