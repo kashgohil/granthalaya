@@ -17,6 +17,13 @@ dist
 .metro-health-check*
 expo-env.d.ts
 
+# content working area — source PDFs and everything derived from them.
+# Never committed: these are third-party editions whose rights are confirmed per book
+# (see ROADMAP "Licensing"), and they are large binaries the repo has no use for.
+# The inventory *about* them is committed, at docs/pdf-inventory.md.
+content/*
+!content/README.md
+
 # code coverage
 coverage
 *.lcov
