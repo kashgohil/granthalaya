@@ -25,7 +25,7 @@ function TypographyPage() {
 	return (
 		<div className="mx-auto max-w-3xl px-6 py-12">
 			<h1 className="display-title text-4xl">Gujarati rendering</h1>
-			<p className="mt-3 text-sm opacity-70">
+			<p className="mt-3 text-ink-muted text-sm">
 				The same specimens the mobile app renders, from <code>@granthalaya/core/fixtures</code>.
 				Compare the two: a difference here is a platform shaping difference, not a content one.
 			</p>
@@ -147,7 +147,7 @@ function Section({
 	children: ReactNode;
 }) {
 	return (
-		<section className="island-shell mt-6 rounded-xl p-5">
+		<section className="grain mt-6 rounded-xl border border-rule bg-surface p-5">
 			<h2 className="font-semibold text-sm">{title}</h2>
 			<p className="mt-1 mb-4 text-sm opacity-70">{check}</p>
 			{children}
