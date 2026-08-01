@@ -16,7 +16,8 @@
     "test": "bun test"
   },
   "dependencies": {
-    "@granthalaya/core": "workspace:*"
+    "@granthalaya/core": "workspace:*",
+    "mupdf": "^1.28.0"
   },
   "devDependencies": {
     "typescript": "~6.0.3"
