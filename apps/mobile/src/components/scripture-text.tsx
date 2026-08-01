@@ -2,14 +2,16 @@ import {
 	type FontRole,
 	type FontWeight,
 	fontFaceId,
+	type MarkColor,
 	protectDanda,
-	resolveTextStyle,
+	resolveTypeStyle,
 	type Script,
+	type TypeToken,
 	type VerseForm,
 } from "@granthalaya/core";
 import { Platform, type StyleProp, Text, type TextProps, type TextStyle } from "react-native";
 
-import { useTheme } from "@/hooks/use-theme";
+import { useTheme } from "@/theme/theme-provider";
 
 export type ScriptureTextProps = Omit<TextProps, "children" | "style"> & {
 	/** The text itself. A string, not nodes: the danda pass and shaping need the whole run. */
@@ -18,20 +20,22 @@ export type ScriptureTextProps = Omit<TextProps, "children" | "style"> & {
 	script?: Script;
 	/** `verse` keeps the line breaks the edition set; `prose` reflows. */
 	form?: VerseForm;
-	/** Latin-equivalent size in px; the script's scale is applied on top. */
+	/** Which step of the reading scale. Sizes are chosen from the scale, not typed in. */
+	token?: Extract<TypeToken, "verse" | "verseLarge">;
+	/** The reader's own size (P2.3), as a Latin-equivalent px value. Overrides the token. */
 	size?: number;
 	/** Multiple of font size. Clamped into the script's band by core. */
 	lineHeight?: number;
 	/** Which font role to set in. Named `face` because `role` is taken by accessibility. */
 	face?: FontRole;
 	weight?: FontWeight;
-	/** Highlight colour. A background wash — never an underline. */
-	highlight?: string;
+	/** Highlight as one of the theme's washes — never an underline (P0.3). */
+	highlight?: MarkColor;
 	style?: StyleProp<TextStyle>;
 };
 
 /**
- * Scripture, rendered under the P0.3 rules.
+ * Scripture, rendered under the P0.3 rules and the P0.4 type scale.
  *
  * Nothing in the app sets `fontSize` and `lineHeight` on Gujarati by hand: this component
  * asks `packages/core` for both, so the size scale and the 1.7–2.0 leading band hold on
@@ -44,16 +48,17 @@ export function ScriptureText({
 	children,
 	script = "gujr",
 	form,
-	size = 18,
+	token = "verse",
+	size,
 	lineHeight,
-	face = "body",
-	weight = 400,
+	face,
+	weight,
 	highlight,
 	style,
 	...rest
 }: ScriptureTextProps) {
-	const theme = useTheme();
-	const resolved = resolveTextStyle({ script, baseFontSize: size, lineHeight, form });
+	const tokens = useTheme();
+	const resolved = resolveTypeStyle(token, script, { size, lineHeight, form });
 	const content = resolved.preserveLineBreaks ? children : children.replaceAll("\n", " ");
 
 	return (
@@ -63,8 +68,8 @@ export function ScriptureText({
 			android_hyphenationFrequency="none"
 			style={[
 				{
-					color: theme.text,
-					fontFamily: fontFaceId(face, weight),
+					color: tokens.ink,
+					fontFamily: fontFaceId(face ?? resolved.face, weight ?? resolved.weight),
 					fontSize: resolved.fontSize,
 					lineHeight: resolved.lineHeight,
 					letterSpacing: resolved.letterSpacing,
@@ -76,7 +81,7 @@ export function ScriptureText({
 					...Platform.select({ android: { includeFontPadding: true }, default: {} }),
 					// A wash behind the glyphs. An underline would be drawn straight through
 					// the below-base matras it is meant to mark.
-					...(highlight === undefined ? {} : { backgroundColor: highlight }),
+					...(highlight === undefined ? {} : { backgroundColor: tokens.marks[highlight] }),
 				},
 				style,
 			]}

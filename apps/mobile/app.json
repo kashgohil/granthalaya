@@ -7,6 +7,7 @@
     "icon": "./assets/images/icon.png",
     "scheme": "granthalaya",
     "userInterfaceStyle": "automatic",
+    "backgroundColor": "#FBFAF8",
     "ios": {
       "icon": "./assets/expo.icon",
       "bundleIdentifier": "com.granthalaya.app"
@@ -14,7 +15,7 @@
     "android": {
       "package": "com.granthalaya.app",
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
+        "backgroundColor": "#FBFAF8",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
@@ -30,9 +31,10 @@
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#208AEF",
-          "image": "./assets/images/splash-icon.png",
-          "imageWidth": 76
+          "backgroundColor": "#FBFAF8",
+          "dark": {
+            "backgroundColor": "#16130F"
+          }
         }
       ]
     ],
