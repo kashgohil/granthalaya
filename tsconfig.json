@@ -5,5 +5,5 @@
   "compilerOptions": {
     "types": ["bun"]
   },
-  "include": ["*.ts"]
+  "include": ["*.ts", "scripts/**/*.ts"]
 }

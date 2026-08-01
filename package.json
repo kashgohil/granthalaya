@@ -16,7 +16,8 @@
     "check:fix": "biome check --write",
     "typecheck": "bun run --filter '*' typecheck",
     "test": "bun test",
-    "validate": "bun packages/pipeline/src/cli.ts validate"
+    "validate": "bun packages/pipeline/src/cli.ts validate",
+    "fonts:sync": "bun scripts/fetch-fonts.ts"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.5.6",
