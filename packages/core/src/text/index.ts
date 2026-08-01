@@ -32,3 +32,4 @@ export {
 	resolveTextStyle,
 	scriptSizeScale,
 } from "./typography.ts";
+export { DANDA, DOUBLE_DANDA, isDanda, protectDanda } from "./punctuation.ts";
