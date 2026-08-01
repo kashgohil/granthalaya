@@ -23,7 +23,15 @@ test("a registered command keeps its trailing arguments", () => {
 });
 
 test("an unregistered command is an error, not a crash", () => {
-	expect(parseArgv(["triage"])).toEqual({ ok: false, error: "Unknown command: triage" });
+	expect(parseArgv(["publish"])).toEqual({ ok: false, error: "Unknown command: publish" });
+});
+
+test("triage is registered", () => {
+	expect(parseArgv(["triage", "./books"])).toEqual({
+		ok: true,
+		command: "triage",
+		args: ["./books"],
+	});
 });
 
 test("usage lists every registered command", () => {
