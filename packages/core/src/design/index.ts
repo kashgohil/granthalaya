@@ -6,6 +6,14 @@
  * `designTokensCss` and `bun run design:sync`.
  */
 
+export type { CoverColourway, CoverSpec, CoverSubject } from "./cover.ts";
+export {
+	COVER_ASPECT_RATIO,
+	COVER_COLOURWAYS,
+	COVER_SHADING,
+	coverColourway,
+	coverFor,
+} from "./cover.ts";
 export type { GrainSpec, MarkColor, MarkColors, ThemeName, ThemeTokens } from "./themes.ts";
 export {
 	isThemeName,
