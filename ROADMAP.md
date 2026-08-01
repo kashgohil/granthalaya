@@ -49,7 +49,7 @@ by `apps/api` → installed and experienced in `apps/mobile`.
 | Phase | Theme | Surface | Status |
 |---|---|---|---|
 | P0 | Foundations & data model | all | 🟨 |
-| P1 | Content pipeline & admin studio | pipeline + web(admin) + api | ⬜ |
+| P1 | Content pipeline & admin studio | pipeline + web(admin) + api | 🟨 |
 | P2 | Library & reader | mobile | ⬜ |
 | P3 | Annotations, collections & sync | mobile + api | ⬜ |
 | P4 | Audio & recital | mobile + api + studio | ⬜ |
@@ -192,13 +192,29 @@ The signature look, before any features — on the surface that matters.
 published, proofed book package served by the API. You are the user; optimize for your
 throughput.*
 
-### P1.1 PDF triage & inventory ⬜
-- [ ] Inventory the PDFs we have: language, script, scan vs text-layer, source edition, rights
-- [ ] Triage CLI in `packages/pipeline`: classify each PDF — (a) true Unicode text layer,
+### P1.1 PDF triage & inventory 🟨
+- [x] Triage CLI in `packages/pipeline`: classify each PDF — (a) true Unicode text layer,
       (b) legacy-font text layer, (c) scanned images. **Rule: never trust embedded text from
       (b) — render to image and OCR**
-- [ ] Pick the first target book (smallest trustworthy text, verse-structured preferred)
+- [x] Inventory *rendering*: `bun run triage <path>` writes the markdown inventory (language/
+      script, scan vs text-layer, page count, per-file strategy and evidence) plus JSON for P1.2
+- [ ] **Run it over the real corpus** — needs the PDFs. Nothing is inventoried yet; the tool
+      has only been exercised against synthetic fixtures and unrelated real PDFs
+- [ ] **Source edition and rights per PDF** — not inferable from a file; a human column the
+      report deliberately leaves blank
+- [ ] Pick the first target book (smallest trustworthy text, verse-structured preferred).
+      The report ranks candidates by trustworthiness then length; "verse-structured" and
+      "we have the rights" are the parts only you can decide
 - **Done when:** a written inventory exists with a chosen first book and per-PDF strategy.
+
+  *Tool landed 2026-08-01; awaiting the corpus.* `packages/pipeline/src/pdf/` splits into
+  `inspect.ts` (the only file that touches MuPDF — text, fonts, image coverage, geometry),
+  `classify.ts` (pure: facts → strategy, confidence and reasons) and `report.ts` (pure:
+  markdown + JSON). The decisive signal is what script the text *extracts* as, via
+  `profileScript` in `packages/core/src/text/script.ts`; font names, missing `ToUnicode`
+  maps, image coverage and an English-word rate corroborate it. `synthetic.ts` hand-builds
+  PDFs carrying one signal each, so the classifier is tested against real PDF structure
+  without a corpus in the repo. Spec: `docs/pdf-triage.md`.
 
 ### P1.2 OCR & extraction ⬜
 - [ ] Page rendering: PDF → high-res page images (per-page, deterministic naming)
@@ -570,9 +586,38 @@ Each mode is a self-contained exercise over a recital item.
 | 2026-08-01 | The theme preference is persisted with **`@react-native-async-storage/async-storage`** | The first native dependency added beyond Expo's own. A key-value preference does not justify SQLite, and the splash is held until the stored value is read back so nobody sees a white frame before their Dark theme arrives |
 | 2026-08-01 | **The `expo-font` config plugin is still not used** (revisit from P0.3 closed) | EAS builds now make prebuild part of the flow, which was the reason to revisit — but the original objection stands: the plugin registers faces under internal family names that differ per platform and cannot express a weight on iOS. `useFonts` with explicit keys stays |
 | 2026-08-01 | The web's **Google-CDN font import is gone**; Fraunces/Manrope replaced by the bundled stack | It contradicted P0.3's own decision that a build must not depend on a CDN, and it meant the studio previewed books in faces the app does not have. The site now sets everything in Rasa and Noto Sans Gujarati, from `tokens.css` and `fonts.css` |
+| 2026-08-01 | **MuPDF (WASM) is the pipeline's PDF reader** | One dependency covers triage *and* P1.2's page rendering: structured text with per-line font names, PDF object access for font dictionaries, image blocks with bounding boxes, and page rasterisation. No system binaries — a corpus can be triaged on a clean checkout, which `pdftotext`/`pdffonts` would not allow |
+| 2026-08-01 | Triage's decisive signal is **the script the text extracts as**, not the font's name or flags | A legacy font's whole nature is that its bytes are Latin, so the script tally catches every one of them — including the families nobody has listed yet. Font names and missing `ToUnicode` maps corroborate and are reported, but requiring either would let an unlisted legacy font publish as scripture |
+| 2026-08-01 | A **common-English-word rate** separates real English PDFs from legacy soup | Both extract as Latin, so the script signal alone cannot tell them apart, and marking every Latin text layer as legacy would send genuinely English front matter to OCR. Known consequence: a book set entirely in romanised Sanskrit fails both tests and goes to OCR — the safe direction, and the report states its reasoning so it can be overruled |
+| 2026-08-01 | **Every ambiguity resolves toward OCR** — `needsOcr` is true for all but a plain `unicode-text` verdict | The two mistakes do not cost the same. Re-OCRing a good text layer wastes machine time; trusting a legacy one corrupts scripture silently, and no later step would catch it |
+| 2026-08-01 | An **image-dominant page is `scanned` even when its text layer is clean Unicode** | A text layer over a page image is somebody else's OCR of unknown provenance. Worth diffing against ours in P1.2, never worth publishing on its own — P1.3's proofing gate exists precisely because no extraction is trusted unread |
+| 2026-08-01 | Pages are **sampled evenly across a book**, not from the front | Front matter is routinely typeset unlike the body — an English title page, a scanned frontispiece — so a prefix would misread a book more often than a spread does. Deterministic, so two runs over the same corpus are comparable |
+| 2026-08-01 | Triage fixtures are **hand-built PDFs, not committed binaries or faked fact objects** | Hand-rolled `PdfFacts` would only prove the classifier agrees with itself, and binaries nobody can diff rot silently. `synthetic.ts` emits real files MuPDF parses without repairing, keeping the corpus as ~200 lines of readable code |
+| 2026-08-01 | **A `ToUnicode` map is a promise, not a guarantee** — an Indic text layer is checked against Gujarati/Devanagari *orthography* before it is trusted (`broken-encoding` verdict) | The first real Gujarati PDF fed to triage was passed as `unicode-text, no OCR needed` and its text was corrupt: Foxit had written a Shruti mapping in which the pre-base matra `િ` never appeared, so `નિરાંતે` extracted as `નનરાુંતે`. Every code point was legitimate Gujarati and the script tally read 100% — only an impossibility check could see it. Publishing it would have rendered beautifully and read as nonsense |
+| 2026-08-01 | Orthography rules describe only what the writing system **forbids**, never what it prefers | Clean text must score exactly zero or the check is a tuning exercise rather than a gate. Measured: 0 violations on correct Gujarati, 50 per 1000 letters on the corrupt file — the threshold sits at 1, with forty-five times of headroom. Anusvara and visarga are deliberately excluded from "vowel signs", or `ું` — the commonest spelling in the language — would read as a violation |
+| 2026-08-01 | **Pre-base matras are the diagnostic** for a broken mapping | A PDF stores glyphs in visual order, so `િ` sits *before* the consonant it follows; emitting correct Unicode means reordering it back, and a mapping that gets anything wrong gets that wrong first. Common enough that a page of prose without one is mechanically impossible |
+| 2026-08-01 | A missing `ToUnicode` map is only reported when the font **also** lacks a standard encoding | The first version flagged Helvetica and Calibri — which extract perfectly from `WinAnsiEncoding` — while saying nothing about the Shruti font whose map was actually wrong. It pointed the reader at the wrong evidence, which is worse than reporting nothing |
+| 2026-08-01 | **Script detection lives in `packages/core`**, not in the pipeline | The studio needs the same question answered — a translation pasted into the transliteration slot is a `latn` run where `gujr` was declared — and it is platform-pure logic over the format's own `Script` union. The danda counts as script-neutral there for the same reason `punctuation.ts` treats it as shared |
 
 ## Changelog
 
+- **2026-08-01** — **P1.1's tool landed: PDF triage.** `bun run triage <path>` walks a folder
+  of PDFs and decides, per file, whether its text layer can be trusted or whether the book has
+  to be rendered and OCR'd — then writes the inventory as markdown and as JSON for P1.2.
+  The decisive signal is what script the text *extracts* as, which is what catches a legacy
+  Gujarati font: the page reads perfectly and the bytes are ASCII. `profileScript` in
+  `packages/core/src/text/script.ts` tallies it, ignoring the spaces, digits, punctuation and
+  dandas that are shared across scripts; font names, missing `ToUnicode` maps, image coverage
+  and a common-English-word rate corroborate. The first real PDF then proved that script
+  alone is not enough: a `ToUnicode` map can be present and wrong, so `checkOrthography`
+  (`packages/core/src/text/orthography.ts`) tests an Indic text layer against sequences the
+  writing system forbids — two vowel signs in a row, a virama before a vowel, a page of prose
+  without one pre-base matra. Clean Gujarati scores zero; the corrupt file scored 50 per 1000.
+  Every ambiguity resolves toward OCR. The report
+  ranks first-book candidates and says plainly what it cannot know — rights, source edition,
+  and whether a book is verse-structured. Spec: `docs/pdf-triage.md`.
+  Next: **point it at the real PDFs** — the inventory, the rights column and the first-book
+  choice are what actually close P1.1 — then **P1.2**, OCR & extraction.
 - **2026-08-01** — **P0.4's code landed: the design language and the app shell.**
   `packages/core/src/design/` — four themes (White/Sepia/Dark/Black) around a sindoor
   terracotta accent, a Gujarati-aware type scale that derives every size from a
