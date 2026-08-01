@@ -18,6 +18,8 @@ export {
 export type { FontFace, FontFamilySpec, FontRole, FontWeight } from "./fonts.ts";
 export { FONT_FACES, fontFaceId, fontFamily, fontFamilyStack } from "./fonts.ts";
 export { DANDA, DOUBLE_DANDA, isDanda, protectDanda } from "./punctuation.ts";
+export type { ForeignScript, ScriptProfile, ScriptTally } from "./script.ts";
+export { profileScript, scriptOf, scriptShare } from "./script.ts";
 export type {
 	CheckableTextStyle,
 	LineHeightBand,
