@@ -15,6 +15,9 @@ export {
 	sliceAksharas,
 	truncateAksharas,
 } from "./akshara.ts";
+export type { FontFace, FontFamilySpec, FontRole, FontWeight } from "./fonts.ts";
+export { FONT_FACES, fontFaceId, fontFamily, fontFamilyStack } from "./fonts.ts";
+export { DANDA, DOUBLE_DANDA, isDanda, protectDanda } from "./punctuation.ts";
 export type {
 	CheckableTextStyle,
 	LineHeightBand,
@@ -32,4 +35,3 @@ export {
 	resolveTextStyle,
 	scriptSizeScale,
 } from "./typography.ts";
-export { DANDA, DOUBLE_DANDA, isDanda, protectDanda } from "./punctuation.ts";
