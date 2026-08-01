@@ -235,6 +235,7 @@ export const BookSchema = z.strictObject({
 	aliases: z.record(z.string().min(1), z.string().min(1)).optional(),
 });
 
+export type Script = z.infer<typeof ScriptSchema>;
 export type LocalizedText = z.infer<typeof LocalizedTextSchema>;
 export type LayerValue = z.infer<typeof LayerValueSchema>;
 export type WordGloss = z.infer<typeof WordGlossSchema>;

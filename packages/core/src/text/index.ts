@@ -15,3 +15,20 @@ export {
 	sliceAksharas,
 	truncateAksharas,
 } from "./akshara.ts";
+export type {
+	CheckableTextStyle,
+	LineHeightBand,
+	ResolvedTextStyle,
+	TextStyleRequest,
+	TypographyViolation,
+} from "./typography.ts";
+export {
+	checkTextStyle,
+	clampLineHeight,
+	HIGHLIGHT_RENDERING,
+	INDIC_LETTER_SPACING,
+	isIndicScript,
+	lineHeightBand,
+	resolveTextStyle,
+	scriptSizeScale,
+} from "./typography.ts";
