@@ -19,3 +19,7 @@ export const gayatriMantra: Book = BookSchema.parse(gayatriMantraPackage);
 export const sampleProse: Book = BookSchema.parse(sampleProsePackage);
 
 export const FIXTURE_BOOKS: readonly Book[] = [gayatriMantra, sampleProse];
+
+/** Typographic render fixtures (P0.3) — the text every surface must draw correctly. */
+export type { TypeSpecimen } from "./text/specimen.ts";
+export { findSpecimen, TYPE_SPECIMENS } from "./text/specimen.ts";
