@@ -42,6 +42,7 @@ bun run dev:api / dev:web / dev:mobile
 bun run validate <path>  # check a book package against docs/book-format.md
 bun run triage <path>    # inventory a folder of PDFs, pick an extraction strategy per file
 bun run render <pdf>     # render a book's pages to images for OCR and proofing (resumable)
+bun run ocr <pages-dir>  # read those pages with Sarvam Vision (needs SARVAM_API_KEY; costs money)
 bun run fonts:sync       # re-download the Gujarati font stack into both apps (output is committed)
 bun run design:sync      # regenerate the paper-grain tile + apps/web tokens.css from packages/core/src/design
 

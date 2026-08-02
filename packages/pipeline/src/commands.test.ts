@@ -42,6 +42,14 @@ test("render is registered", () => {
 	});
 });
 
+test("ocr is registered", () => {
+	expect(parseArgv(["ocr", "content/pages/book", "--dry-run"])).toEqual({
+		ok: true,
+		command: "ocr",
+		args: ["content/pages/book", "--dry-run"],
+	});
+});
+
 test("usage lists every registered command", () => {
 	const text = usage();
 	for (const name of Object.keys(COMMANDS)) {

@@ -8,6 +8,7 @@
 /** Every command the CLI understands, mapped to its one-line help text. */
 export const COMMANDS = {
 	help: "Show this help text",
+	ocr: "Read a rendered book's pages with Sarvam Vision (ocr <pages-dir>)",
 	render: "Render a PDF's pages to images for OCR and proofing (render <file.pdf>)",
 	triage: "Inventory a folder of PDFs and pick an extraction strategy (triage <path>...)",
 	validate: "Check a book package against the format spec (validate <path>...)",

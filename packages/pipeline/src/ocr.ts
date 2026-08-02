@@ -1,0 +1,504 @@
+/**
+ * `granthalaya ocr <pages-dir>` — read a book's rendered pages and get its text back (P1.2).
+ *
+ * Takes the directory `render` produced, not a PDF: the images are the artefact we decided to
+ * trust, and the render manifest's source hash travels into the OCR manifest so the chain from
+ * *this PDF* → *these images* → *this text* is unbroken and checkable.
+ *
+ * Every page is scored with `checkOrthography` as it lands. That does not prove the OCR read
+ * the right word, but it catches every word Gujarati cannot spell — free, on every page, and
+ * without a ground-truth transcript. A page that scores badly is where proofing should start.
+ */
+
+import { mkdir } from "node:fs/promises";
+import { basename, join } from "node:path";
+import { checkOrthography, type OrthographyReport, profileScript } from "@granthalaya/core";
+import {
+	batchPages,
+	estimateRupees,
+	MAX_PAGES_PER_JOB,
+	type PageFile,
+	SarvamClient,
+	SarvamError,
+	type SarvamOptions,
+} from "./ocr/sarvam.ts";
+import {
+	MANIFEST_FILE,
+	type PageManifest,
+	type PageRange,
+	parsePageSpec,
+	resolvePageSpec,
+} from "./pdf/rasterize.ts";
+
+/** Where OCR output goes when `--out` is not given. */
+export const DEFAULT_OCR_ROOT = "content/ocr";
+export const OCR_MANIFEST_FILE = "ocr.json";
+
+/** Above this, a run must say `--yes`. Small enough to try a chapter, large enough to notice. */
+export const CONFIRM_ABOVE_PAGES = 50;
+
+export type OcrOptions = {
+	/** The directory `render` wrote — page images plus `pages.json`. */
+	readonly pagesDir: string;
+	readonly out: string;
+	readonly language: string;
+	readonly outputFormat: "md" | "html";
+	readonly contentType: "printed" | "handwritten" | "mixed";
+	readonly pages: readonly PageRange[] | null;
+	readonly force: boolean;
+	readonly dryRun: boolean;
+	readonly yes: boolean;
+	readonly requestsPerMinute: number;
+};
+
+export type OcrArgs =
+	| { readonly ok: true; readonly options: OcrOptions }
+	| { readonly ok: false; readonly error: string };
+
+export const OCR_USAGE = [
+	"Usage: granthalaya ocr <pages-dir> [options]",
+	"",
+	"  Read a book's rendered pages with Sarvam Vision and write its text out, one file per",
+	"  page. Pages already done are kept, so a run can be stopped and resumed.",
+	"",
+	"  Needs SARVAM_API_KEY in the environment (repo-root .env — see .env.example).",
+	"",
+	"Options:",
+	`  --out <dir>          where to write the text (default ${DEFAULT_OCR_ROOT}/<book>)`,
+	"  --pages <spec>       which pages: 12, 1-40, 300-, or a comma-separated mix",
+	"  --language <tag>     BCP-47 document language (default gu-IN)",
+	"  --format <fmt>       md or html (default md)",
+	"  --content-type <t>   printed, handwritten or mixed (default printed)",
+	"  --dry-run            show the plan and the cost, call nothing",
+	`  --yes                confirm a run of more than ${CONFIRM_ABOVE_PAGES} pages`,
+	"  --force              re-read pages already done",
+	"  --rpm <n>            requests per minute (default 10, the API's published limit)",
+].join("\n");
+
+/** Parse `ocr`'s arguments. Pure: no `process`, no I/O, no network. */
+export function parseOcrArgs(args: readonly string[]): OcrArgs {
+	const positional: string[] = [];
+	let out: string | null = null;
+	let language = "gu-IN";
+	let outputFormat: "md" | "html" = "md";
+	let contentType: "printed" | "handwritten" | "mixed" = "printed";
+	let pages: readonly PageRange[] | null = null;
+	let force = false;
+	let dryRun = false;
+	let yes = false;
+	let requestsPerMinute = 10;
+
+	for (let index = 0; index < args.length; index += 1) {
+		const arg = args[index] as string;
+		const takeValue = (): string | null => {
+			const value = args[index + 1];
+			if (value === undefined || value.startsWith("--")) {
+				return null;
+			}
+			index += 1;
+			return value;
+		};
+
+		if (arg === "--out") {
+			const value = takeValue();
+			if (value === null) {
+				return { ok: false, error: "--out needs a directory" };
+			}
+			out = value;
+		} else if (arg === "--language") {
+			const value = takeValue();
+			if (value === null) {
+				return { ok: false, error: "--language needs a BCP-47 tag, e.g. gu-IN" };
+			}
+			language = value;
+		} else if (arg === "--format") {
+			const value = takeValue();
+			if (value !== "md" && value !== "html") {
+				return { ok: false, error: "--format needs md or html" };
+			}
+			outputFormat = value;
+		} else if (arg === "--content-type") {
+			const value = takeValue();
+			if (value !== "printed" && value !== "handwritten" && value !== "mixed") {
+				return { ok: false, error: "--content-type needs printed, handwritten or mixed" };
+			}
+			contentType = value;
+		} else if (arg === "--pages") {
+			const value = takeValue();
+			const parsed = value === null ? null : parsePageSpec(value);
+			if (parsed === null) {
+				return { ok: false, error: "--pages needs something like 12, 1-40, 300- or 1-3,9" };
+			}
+			pages = parsed;
+		} else if (arg === "--rpm") {
+			const value = takeValue();
+			const parsed = value === null ? Number.NaN : Number(value);
+			if (!Number.isInteger(parsed) || parsed < 0) {
+				return { ok: false, error: "--rpm needs a whole number, 0 to switch the limit off" };
+			}
+			requestsPerMinute = parsed;
+		} else if (arg === "--force") {
+			force = true;
+		} else if (arg === "--dry-run") {
+			dryRun = true;
+		} else if (arg === "--yes") {
+			yes = true;
+		} else if (arg.startsWith("--")) {
+			return { ok: false, error: `Unknown option: ${arg}` };
+		} else {
+			positional.push(arg);
+		}
+	}
+
+	if (positional.length === 0) {
+		return { ok: false, error: "ocr needs the directory that `render` wrote" };
+	}
+	if (positional.length > 1) {
+		return { ok: false, error: "ocr takes one book at a time" };
+	}
+
+	const pagesDir = positional[0] as string;
+	return {
+		ok: true,
+		options: {
+			pagesDir,
+			out: out ?? join(DEFAULT_OCR_ROOT, basename(pagesDir.replace(/\/+$/, ""))),
+			language,
+			outputFormat,
+			contentType,
+			pages,
+			force,
+			dryRun,
+			yes,
+			requestsPerMinute,
+		},
+	};
+}
+
+export type OcrPageResult = {
+	readonly number: number;
+	readonly file: string;
+	readonly chars: number;
+	/** What script the text came back as — a Latin answer means something went badly wrong. */
+	readonly script: string;
+	readonly scriptShare: number;
+	readonly orthography: {
+		readonly ok: boolean;
+		readonly violations: number;
+		readonly examined: number;
+		/** Impossible sequences per 1000 letters. Clean Gujarati scores 0. */
+		readonly rate: number;
+	};
+};
+
+export type OcrManifest = {
+	/** Carried from the render manifest: the chain of custody back to one exact PDF. */
+	readonly source: string;
+	readonly sourceSha256: string;
+	readonly engine: string;
+	readonly language: string;
+	readonly outputFormat: string;
+	readonly contentType: string;
+	readonly pageCount: number;
+	readonly pages: readonly OcrPageResult[];
+	readonly failures: readonly { readonly number: number; readonly error: string }[];
+};
+
+export type OcrOutcome =
+	| {
+			readonly ok: true;
+			readonly manifest: OcrManifest;
+			readonly done: number;
+			readonly reused: number;
+	  }
+	| { readonly ok: false; readonly error: string };
+
+function scoreOf(report: OrthographyReport): OcrPageResult["orthography"] {
+	return {
+		ok: report.ok,
+		violations: report.count,
+		examined: report.examined,
+		rate: Math.round(report.rate * 100) / 100,
+	};
+}
+
+function pageTextFile(imageFile: string, outputFormat: string): string {
+	return `${imageFile.replace(/\.[^.]+$/, "")}.${outputFormat}`;
+}
+
+async function readJson<T>(path: string): Promise<T | null> {
+	try {
+		const file = Bun.file(path);
+		return (await file.exists()) ? ((await file.json()) as T) : null;
+	} catch {
+		return null;
+	}
+}
+
+/**
+ * OCR a rendered book. The client is a parameter so a run can be driven by a stub in tests and
+ * by the real API in anger.
+ */
+export async function ocrBook(
+	options: OcrOptions,
+	client: SarvamClient,
+	onProgress?: (done: number, total: number) => void,
+): Promise<OcrOutcome> {
+	const manifest = await readJson<PageManifest>(join(options.pagesDir, MANIFEST_FILE));
+	if (manifest === null) {
+		return {
+			ok: false,
+			error: `no ${MANIFEST_FILE} in ${options.pagesDir} — run \`bun run render\` on the PDF first`,
+		};
+	}
+
+	const wanted =
+		options.pages === null
+			? manifest.pages
+			: (() => {
+					const numbers = new Set(resolvePageSpec(options.pages, manifest.pageCount));
+					return manifest.pages.filter((page) => numbers.has(page.number));
+				})();
+
+	if (wanted.length === 0) {
+		return { ok: false, error: "no rendered pages in that range" };
+	}
+
+	await mkdir(options.out, { recursive: true });
+
+	const previous = await readJson<OcrManifest>(join(options.out, OCR_MANIFEST_FILE));
+	const kept = new Map<number, OcrPageResult>();
+	if (!options.force && previous !== null && previous.sourceSha256 === manifest.sourceSha256) {
+		for (const page of previous.pages) {
+			if (await Bun.file(join(options.out, page.file)).exists()) {
+				kept.set(page.number, page);
+			}
+		}
+	}
+
+	const todo = wanted.filter((page) => !kept.has(page.number));
+	const results: OcrPageResult[] = [];
+	const failures: { number: number; error: string }[] = [];
+	let done = 0;
+
+	for (const batch of batchPages(todo, MAX_PAGES_PER_JOB)) {
+		const files: PageFile[] = [];
+		for (const page of batch) {
+			const bytes = new Uint8Array(await Bun.file(join(options.pagesDir, page.file)).arrayBuffer());
+			files.push({ name: page.file, bytes });
+		}
+
+		try {
+			const result = await client.digitise(files);
+			const byName = new Map(result.pages.map((page) => [page.fileName, page.content]));
+
+			for (const page of batch) {
+				const text = byName.get(page.file);
+				if (text === undefined) {
+					failures.push({ number: page.number, error: "the job returned no text for this page" });
+					continue;
+				}
+				const file = pageTextFile(page.file, options.outputFormat);
+				await Bun.write(join(options.out, file), text);
+				const profile = profileScript(text);
+				results.push({
+					number: page.number,
+					file,
+					chars: text.length,
+					script: profile.dominant ?? "none",
+					scriptShare: Math.round(profile.share * 1000) / 1000,
+					orthography: scoreOf(checkOrthography(text, "gujr")),
+				});
+			}
+		} catch (cause) {
+			// One bad batch is ten pages, not a book. Record and carry on.
+			const message = cause instanceof SarvamError ? cause.message : String(cause);
+			for (const page of batch) {
+				failures.push({ number: page.number, error: message });
+			}
+		}
+
+		done += batch.length;
+		onProgress?.(done, todo.length);
+	}
+
+	const merged = new Map<number, OcrPageResult>();
+	for (const page of [...(previous?.pages ?? []), ...kept.values(), ...results]) {
+		if (await Bun.file(join(options.out, page.file)).exists()) {
+			merged.set(page.number, page);
+		}
+	}
+
+	const written: OcrManifest = {
+		source: manifest.source,
+		sourceSha256: manifest.sourceSha256,
+		engine: "sarvam-vision-v1",
+		language: options.language,
+		outputFormat: options.outputFormat,
+		contentType: options.contentType,
+		pageCount: manifest.pageCount,
+		pages: [...merged.values()].sort((a, b) => a.number - b.number),
+		failures,
+	};
+	await Bun.write(join(options.out, OCR_MANIFEST_FILE), `${JSON.stringify(written, null, "\t")}\n`);
+
+	return { ok: true, manifest: written, done: results.length, reused: kept.size };
+}
+
+function plural(count: number, noun: string): string {
+	return `${count} ${noun}${count === 1 ? "" : "s"}`;
+}
+
+/** How many pages a run would actually send, for the estimate and the confirmation gate. */
+export async function planOcr(
+	options: OcrOptions,
+): Promise<{ ok: true; total: number; todo: number } | { ok: false; error: string }> {
+	const manifest = await readJson<PageManifest>(join(options.pagesDir, MANIFEST_FILE));
+	if (manifest === null) {
+		return {
+			ok: false,
+			error: `no ${MANIFEST_FILE} in ${options.pagesDir} — run \`bun run render\` on the PDF first`,
+		};
+	}
+
+	const wanted =
+		options.pages === null
+			? manifest.pages
+			: (() => {
+					const numbers = new Set(resolvePageSpec(options.pages, manifest.pageCount));
+					return manifest.pages.filter((page) => numbers.has(page.number));
+				})();
+
+	if (options.force) {
+		return { ok: true, total: wanted.length, todo: wanted.length };
+	}
+
+	const previous = await readJson<OcrManifest>(join(options.out, OCR_MANIFEST_FILE));
+	const kept = new Set<number>();
+	if (previous !== null && previous.sourceSha256 === manifest.sourceSha256) {
+		for (const page of previous.pages) {
+			if (await Bun.file(join(options.out, page.file)).exists()) {
+				kept.add(page.number);
+			}
+		}
+	}
+	return {
+		ok: true,
+		total: wanted.length,
+		todo: wanted.filter((page) => !kept.has(page.number)).length,
+	};
+}
+
+export type OcrDeps = {
+	readonly apiKey?: string;
+	readonly makeClient?: (options: SarvamOptions) => SarvamClient;
+	readonly onProgress?: (done: number, total: number) => void;
+};
+
+/** Drive an OCR run. Returns what the CLI should print and whether it succeeded. */
+export async function runOcr(
+	args: readonly string[],
+	deps: OcrDeps = {},
+): Promise<{ ok: boolean; text: string }> {
+	const parsed = parseOcrArgs(args);
+	if (!parsed.ok) {
+		return { ok: false, text: `error  ${parsed.error}\n\n${OCR_USAGE}` };
+	}
+	const { options } = parsed;
+
+	const plan = await planOcr(options);
+	if (!plan.ok) {
+		return { ok: false, text: `error  ${plan.error}` };
+	}
+
+	const estimate = `${plan.todo} to read → about ₹${estimateRupees(plan.todo).toFixed(2)}`;
+	if (options.dryRun) {
+		return {
+			ok: true,
+			text: [
+				`${options.pagesDir} → ${options.out}`,
+				`  ${plural(plan.total, "page")} selected, ${estimate}`,
+				`  ${options.language}, ${options.contentType}, ${options.outputFormat}`,
+				"  dry run — nothing was sent",
+			].join("\n"),
+		};
+	}
+
+	if (plan.todo === 0) {
+		return { ok: true, text: `nothing to do — all ${plan.total} pages are already read` };
+	}
+
+	// Spending money is worth one deliberate keystroke. Small runs stay frictionless.
+	if (plan.todo > CONFIRM_ABOVE_PAGES && !options.yes) {
+		return {
+			ok: false,
+			text:
+				`error  this would read ${plan.todo} pages (${estimate}).\n` +
+				"       Re-run with --yes to confirm, or --dry-run to see the plan.",
+		};
+	}
+
+	const apiKey = deps.apiKey ?? process.env.SARVAM_API_KEY;
+	if (apiKey === undefined || apiKey === "") {
+		return {
+			ok: false,
+			text:
+				"error  SARVAM_API_KEY is not set.\n" +
+				"       Get a key at https://dashboard.sarvam.ai and put it in the repo-root .env\n" +
+				"       (see .env.example). Bun loads it automatically.",
+		};
+	}
+
+	const make = deps.makeClient ?? ((sarvam: SarvamOptions) => new SarvamClient(sarvam));
+	const client = make({
+		apiKey,
+		language: options.language,
+		outputFormat: options.outputFormat,
+		contentType: options.contentType,
+		requestsPerMinute: options.requestsPerMinute,
+	});
+
+	const result = await ocrBook(options, client, deps.onProgress);
+	if (!result.ok) {
+		return { ok: false, text: `error  ${result.error}` };
+	}
+
+	const { manifest } = result;
+	const scored = manifest.pages.filter((page) => page.orthography.examined > 0);
+	const worst = [...scored].sort((a, b) => b.orthography.rate - a.orthography.rate).slice(0, 5);
+	const clean = scored.filter((page) => page.orthography.ok).length;
+	const gujarati = manifest.pages.filter((page) => page.script === "gujr").length;
+
+	const lines = [
+		`${manifest.source} → ${options.out}`,
+		`  ${plural(result.done, "page")} read` +
+			(result.reused > 0 ? `, ${result.reused} kept from an earlier run` : "") +
+			` — about ₹${estimateRupees(result.done).toFixed(2)}`,
+		`  ${gujarati}/${manifest.pages.length} came back as Gujarati`,
+		`  ${clean}/${scored.length} pages are orthographically clean`,
+		`  manifest: ${join(options.out, OCR_MANIFEST_FILE)}`,
+	];
+
+	if (worst.length > 0 && (worst[0]?.orthography.rate ?? 0) > 0) {
+		lines.push(
+			"",
+			"Worst pages by impossible-sequence rate — start proofing here:",
+			...worst
+				.filter((page) => page.orthography.rate > 0)
+				.map(
+					(page) =>
+						`  page ${page.number}: ${page.orthography.violations} in ${page.orthography.examined} letters (${page.orthography.rate}/1000)`,
+				),
+		);
+	}
+
+	if (manifest.failures.length > 0) {
+		lines.push(
+			"",
+			`${plural(manifest.failures.length, "page")} failed:`,
+			...manifest.failures.slice(0, 10).map((f) => `  page ${f.number}: ${f.error}`),
+		);
+	}
+
+	return { ok: manifest.failures.length === 0, text: lines.join("\n") };
+}

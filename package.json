@@ -18,6 +18,7 @@
     "test": "bun test",
     "triage": "bun packages/pipeline/src/cli.ts triage",
     "render": "bun packages/pipeline/src/cli.ts render",
+    "ocr": "bun packages/pipeline/src/cli.ts ocr",
     "validate": "bun packages/pipeline/src/cli.ts validate",
     "fonts:sync": "bun scripts/fetch-fonts.ts",
     "design:sync": "bun scripts/sync-design.ts"
