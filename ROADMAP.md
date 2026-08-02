@@ -227,9 +227,12 @@ throughput.*
       ₹0.5/page, so the first book costs about ₹221
 - [x] OCR integration: `bun run ocr <pages-dir>`. Batches to the API's 10-page jobs, respects
       its 10 req/min limit, resumes, and scores every page with `checkOrthography` as it lands
-- [ ] **Run it against the live API** — needs a `SARVAM_API_KEY`. The client is tested against
-      a stub only; nothing has been sent to Sarvam yet, so the real response shape, the actual
-      Gujarati accuracy and the ₹ cost are all still unverified
+- [x] **Verified against the live API** on four real pages (₹2): 4/4 came back Gujarati, 4/4
+      orthographically clean at 0 violations per 1000, body text matching the page images.
+      Sarvam returns *blocks* with layout tags, not the `content` string its OpenAPI schema
+      documents — so the running head, body and footnote arrive already told apart
+- [ ] Run the remaining 438 pages — deliberately deferred until P1.3 can receive the text;
+      the images are banked and OCR only gets better with time
 - [ ] Compare against a second engine on the same 20 pages (Gemini 3, Cloud Vision, Surya) and
       keep whichever wins — the engine sits behind one interface so a book can be re-run and
       diffed
@@ -621,6 +624,9 @@ Each mode is a self-contained exercise over a recital item.
 | 2026-08-01 | **Pre-base matras are the diagnostic** for a broken mapping | A PDF stores glyphs in visual order, so `િ` sits *before* the consonant it follows; emitting correct Unicode means reordering it back, and a mapping that gets anything wrong gets that wrong first. Common enough that a page of prose without one is mechanically impossible |
 | 2026-08-01 | A missing `ToUnicode` map is only reported when the font **also** lacks a standard encoding | The first version flagged Helvetica and Calibri — which extract perfectly from `WinAnsiEncoding` — while saying nothing about the Shruti font whose map was actually wrong. It pointed the reader at the wrong evidence, which is worse than reporting nothing |
 | 2026-08-02 | **Sarvam Vision is the OCR engine** | No public benchmark isolates Gujarati, so the choice rests on adjacent evidence: on real Devanagari scans the field spread 76 chrF++ points (Gemini 86.3, Claude 82.2, GPT-5.5 58.5), and every VLM tested failed specifically on conjuncts, matras and nukta — our content. Sarvam is the only candidate trained on Indic documents rather than treating Gujarati as one language among a hundred (87.36% avg word accuracy across 22 Indian languages on its own bench; 84.3% on the independent olmOCR-Bench, above Gemini 3 Pro's 80.2%), and the only one that classifies `footnote`/`header`/`page-number`/`folio` regions. Tesseract is ruled out: F1 0.797 on Gujarati against PaddleOCR's 0.938 |
+| 2026-08-03 | Sarvam's **layout blocks are consumed, not its joined text** — page furniture set aside, notes below a rule, body in reading order | The API returns each page as classified regions (`header`, `paragraph`, `footer`, `page-number`, `folio`), which turned out to matter more than any accuracy difference between engines: it hands over the apparatus separation P1.2 would otherwise have solved from coordinates and guesswork. A running head left in the body would sit inside 442 verses. Blocks are also written per page with their boxes, because P1.3's side-by-side view has to map a line back to a place on the image |
+| 2026-08-03 | **A block that comes back in the wrong script is set aside, and recorded** | Asked to read a decorative glyph, the model answered *"This image contains no text. It displays three identical black heart symbols…"* — English, tagged `paragraph`, mid-page. A second page needed the tag filter as well, describing an illustration *in Gujarati* where only its `image` tag gave it away. Residual risk P1.3 must catch: a Gujarati description tagged `paragraph` passes both filters, which is one more reason the human proofing gate is mandatory. Nothing is dropped silently — a silent drop is indistinguishable from text the OCR never saw |
+| 2026-08-03 | The client **accepts both the documented and the actual response spellings** | Sarvam sends `filename`/`page_num`/`blocks`; its published OpenAPI schema says `file_name`/`page_number`/`content`. The first live run reported "returned no text" for every page while the OCR itself had worked perfectly. Tolerating both means a correction on their side is not an outage on ours |
 | 2026-08-02 | OCR takes **the rendered images, never the source PDF** | The PDF's text layer is the thing P1.1 established we cannot trust, and handing the file to the engine invites it back in. The images are also what the render manifest pins by hash, so what was OCR'd is exactly what a human later proofreads |
 | 2026-08-02 | The OCR manifest **carries the source hash forward** from the render manifest | Chain of custody: *this PDF* → *these images* → *this text*. Proofed scripture that cannot be tied back to the edition it came from is not publishable, and the tie has to survive each hop rather than be reconstructed at the end |
 | 2026-08-02 | Every OCR'd page is **scored with `checkOrthography` as it lands** | P1.1's gate becomes P1.2's instrument for free. It cannot prove the right word was read, but it catches every word Gujarati cannot spell without a ground-truth transcript, on every page — and it ranks the worst pages, so proofing starts where the evidence points instead of at page one |
@@ -652,11 +658,20 @@ Each mode is a self-contained exercise over a recital item.
   `checkOrthography` as it lands, which turns that gate into a free per-page quality signal and
   ranks the worst pages so proofing starts where the evidence points. It is the first command
   here that spends money, so `--dry-run` prices a run, more than fifty pages needs `--yes`, and
-  finished pages are never re-read. **Tested against a stub only — nothing has been sent to
-  Sarvam yet.**
-  Next: **a `SARVAM_API_KEY` and twenty real pages** — the accuracy, the response shape and the
-  cost are all still unverified, and a second engine on the same pages is what settles the
-  choice.
+  finished pages are never re-read.
+- **2026-08-03** — **OCR verified on real pages, and Sarvam reads this book well.** Four pages
+  for ₹2: all four came back Gujarati, all four orthographically clean at 0 violations per
+  1000, body text matching the page images conjunct for conjunct. The live API turned out not
+  to match its own OpenAPI schema — it returns *blocks* with layout tags and pixel boxes rather
+  than a `content` string — which is better than what was specified: the running head, the body
+  and the footnote arrive already told apart, and that separation is worth more here than a
+  point of word accuracy. It also exposed the hazard that justifies filtering: asked to read a
+  decorative glyph the model wrote an English *description* of it, tagged `paragraph`,
+  mid-page. Blocks in the wrong script and non-text tags are now set aside and recorded.
+  Spec: `docs/ocr.md`.
+  Next: **P1.3, the proofing studio** — the remaining 438 pages are deliberately not OCR'd
+  until there is somewhere for the text to go, and a second engine over the same four pages is
+  what would settle the engine choice properly.
 - **2026-08-01** — **P1.1's tool landed: PDF triage.** `bun run triage <path>` walks a folder
   of PDFs and decides, per file, whether its text layer can be trusted or whether the book has
   to be rendered and OCR'd — then writes the inventory as markdown and as JSON for P1.2.
