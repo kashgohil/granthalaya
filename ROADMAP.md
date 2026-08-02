@@ -216,16 +216,31 @@ throughput.*
   PDFs carrying one signal each, so the classifier is tested against real PDF structure
   without a corpus in the repo. Spec: `docs/pdf-triage.md`.
 
-### P1.2 OCR & extraction ⬜
-- [ ] Page rendering: PDF → high-res page images (per-page, deterministic naming)
-- [ ] OCR integration: Google Cloud Vision `DOCUMENT_TEXT_DETECTION` with `languageHints: ["gu"]`
-      (evaluate self-hosted Surya as fallback/offline option — use whatever is optimal per book)
+### P1.2 OCR & extraction 🟨
+- [x] Page rendering: PDF → high-res page images (per-page, deterministic naming).
+      `bun run render <pdf>` — 300 DPI greyscale PNG by default, resumable, with a manifest
+      that pins the output to the source file by content hash
+- [ ] **Choose the OCR engine** — Google Cloud Vision `DOCUMENT_TEXT_DETECTION` with
+      `languageHints: ["gu"]` needs a GCP project and billing; self-hosted Surya runs local
+      and free. Needs a decision before the next item can start
+- [ ] OCR integration (use whatever is optimal per book; keep the engine behind one interface
+      so a book can be re-run through the other and diffed)
 - [ ] Post-processing pass: Unicode NFC normalization, pre-base matra reorder repair,
-      conjunct sanity checks
+      conjunct sanity checks — `checkOrthography` from P1.1 is the gate this pass has to pass
 - [ ] Structure detection: chapter/verse boundaries from numbering; verse-number sequence used
-      as a checksum (flag missing/duplicate verses)
+      as a checksum (flag missing/duplicate verses). **Numbers are in Gujarati digits** and the
+      printed page number is not the PDF page number — see `docs/page-rendering.md`
 - [ ] Output: draft book package (P0.2 format) + per-verse confidence scores
 - **Done when:** the first book emerges as a draft package with >95% of verses auto-segmented correctly.
+
+  *Rendering landed 2026-08-02.* `pdf/rasterize.ts` renders and `render.ts` parses; spec in
+  `docs/page-rendering.md`. Verified on the first real book — *Gopalanand Swami ni Vato*, 442
+  pages in 10s, 77 MB. Being a legacy-font PDF rather than a scan, its pages render pristine:
+  no noise, no skew, any DPI free. The pages themselves then showed five things the text layer
+  could not: Gujarati digits everywhere, a constant 27-page offset between printed and PDF page
+  numbers, printed section-end markers (`॥ … વાતો સમાપ્ત ॥`) that are exactly the work
+  boundaries structure detection needs, footnotes below a rule that must not be spliced into
+  verses, and Devanagari shlokas inline in Gujarati pages.
 
 ### P1.3 Proofing studio (web, admin-only) ⬜
 Human-in-the-loop correction UI — mandatory for scripture-grade fidelity.
@@ -597,10 +612,27 @@ Each mode is a self-contained exercise over a recital item.
 | 2026-08-01 | Orthography rules describe only what the writing system **forbids**, never what it prefers | Clean text must score exactly zero or the check is a tuning exercise rather than a gate. Measured: 0 violations on correct Gujarati, 50 per 1000 letters on the corrupt file — the threshold sits at 1, with forty-five times of headroom. Anusvara and visarga are deliberately excluded from "vowel signs", or `ું` — the commonest spelling in the language — would read as a violation |
 | 2026-08-01 | **Pre-base matras are the diagnostic** for a broken mapping | A PDF stores glyphs in visual order, so `િ` sits *before* the consonant it follows; emitting correct Unicode means reordering it back, and a mapping that gets anything wrong gets that wrong first. Common enough that a page of prose without one is mechanically impossible |
 | 2026-08-01 | A missing `ToUnicode` map is only reported when the font **also** lacks a standard encoding | The first version flagged Helvetica and Calibri — which extract perfectly from `WinAnsiEncoding` — while saying nothing about the Shruti font whose map was actually wrong. It pointed the reader at the wrong evidence, which is worse than reporting nothing |
+| 2026-08-02 | Rendered pages default to **300 DPI greyscale PNG** | 300 is the floor every OCR engine asks for on printed text, and it verified legible on a 4.7×7in trim size where the type is physically small. Greyscale because engines binarize anyway and it is a third of the bytes; PNG because JPEG rings around thin strokes and a Gujarati conjunct is mostly thin strokes. `--color` exists for editions that print headings or Sanskrit in red |
+| 2026-08-02 | A page is rendered **as published**: no alpha, no annotations | An OCR engine wants ink on white, and a transparent background flattens to black. Annotations are skipped because a previous reader's highlight is an annotation, and it would end up in the scripture |
+| 2026-08-02 | The page manifest **pins its images to the source file by SHA-256** | These images are the source of truth for every verse OCR'd out of them, so the tie has to be to one exact file rather than to a name. A re-downloaded or swapped PDF hashes differently and cannot be silently OCR'd as the edition that was proofed |
+| 2026-08-02 | A render **resumes only when source hash, DPI, format and colour all agree** | Rendering is minutes of work and settings get tried more than once, so resuming matters — but half a book at 150 DPI mixed with half at 300 is worse than neither, and it would not be visible in a directory listing. Disagreement starts over; a *page range* still adds rather than replaces |
 | 2026-08-01 | **Script detection lives in `packages/core`**, not in the pipeline | The studio needs the same question answered — a translation pasted into the transliteration slot is a `latn` run where `gujr` was declared — and it is platform-pure logic over the format's own `Script` union. The danda counts as script-neutral there for the same reason `punctuation.ts` treats it as shared |
 
 ## Changelog
 
+- **2026-08-02** — **P1.2 began: pages render.** `bun run render <pdf>` turns a book into the
+  images it will be OCR'd and proofed from — 300 DPI greyscale PNG by default, `page-0001.png`
+  zero-padded so a listing is in page order, and a `pages.json` manifest that pins the output
+  to its source file by SHA-256 so a swapped PDF can never be silently OCR'd as the edition
+  that was proofed. Runs resume, but only when hash, DPI, format and colour all agree; a page
+  range adds to what is there rather than replacing it. The first real book rendered in 10
+  seconds and 77 MB, and the pages then showed five things its text layer never could:
+  Gujarati digits throughout, printed page numbers running 27 behind the PDF's, printed
+  section-end markers that are exactly the work boundaries structure detection wants,
+  footnotes below a rule, and Devanagari shlokas inline in Gujarati pages.
+  Spec: `docs/page-rendering.md`.
+  Next: **choose the OCR engine** — Cloud Vision needs a GCP project and billing, Surya runs
+  local and free — which is what unblocks the rest of P1.2.
 - **2026-08-01** — **P1.1's tool landed: PDF triage.** `bun run triage <path>` walks a folder
   of PDFs and decides, per file, whether its text layer can be trusted or whether the book has
   to be rendered and OCR'd — then writes the inventory as markdown and as JSON for P1.2.
