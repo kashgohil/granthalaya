@@ -10,6 +10,8 @@ import {
 	type OcrOptions,
 	ocrBook,
 	parseOcrArgs,
+	partitionBlocks,
+	renderPageMarkdown,
 	runOcr,
 } from "./ocr.ts";
 import { GUJARATI_PAGES } from "./pdf/fixtures.ts";
@@ -49,9 +51,15 @@ async function rendered(pageCount = 4): Promise<{ pagesDir: string; out: string 
 	return { pagesDir, out: join(dir, "ocr") };
 }
 
-/** A client that answers with real Gujarati, or with whatever a test asks for. */
+function block(text: string, tag = "paragraph", readingOrder = 1) {
+	return { id: `b${readingOrder}`, text, tag, readingOrder, bbox: [0, 0, 10, 10] as const };
+}
+
+/** A client that answers with real Gujarati blocks, or with whatever a test asks for. */
 function fakeClient(
-	text: (fileName: string) => string = () => GUJARATI_PAGES[0] as string,
+	blocks: (fileName: string) => ReturnType<typeof block>[] = () => [
+		block(GUJARATI_PAGES[0] as string),
+	],
 	fail = false,
 ): SarvamClient {
 	return {
@@ -71,7 +79,9 @@ function fakeClient(
 				pages: files.map((file) => ({
 					fileName: file.name,
 					pageNumber: 1,
-					content: text(file.name),
+					widthPx: 1414,
+					heightPx: 2110,
+					blocks: blocks(file.name),
 				})),
 			};
 		},
@@ -98,7 +108,6 @@ test("reads a book in Gujarati as printed markdown by default", () => {
 		throw new Error(parsed.error);
 	}
 	expect(parsed.options.language).toBe("gu-IN");
-	expect(parsed.options.outputFormat).toBe("md");
 	expect(parsed.options.contentType).toBe("printed");
 	expect(parsed.options.out).toBe("content/ocr/some-book");
 	expect(parsed.options.yes).toBe(false);
@@ -122,7 +131,6 @@ test("refuses arguments it cannot honour", () => {
 	};
 	expect(error([])).toContain("needs the directory");
 	expect(error(["a", "b"])).toContain("one book at a time");
-	expect(error(["dir", "--format", "pdf"])).toContain("--format");
 	expect(error(["dir", "--content-type", "scribbled"])).toContain("--content-type");
 	expect(error(["dir", "--pages", "nope"])).toContain("--pages");
 	expect(error(["dir", "--rpm", "-1"])).toContain("--rpm");
@@ -141,7 +149,7 @@ test("writes one file per page and a manifest", async () => {
 	expect(result.done).toBe(4);
 	expect(result.manifest.pages).toHaveLength(4);
 	expect(result.manifest.pages[0]?.file).toBe("page-0001.md");
-	expect(await Bun.file(join(out, "page-0001.md")).text()).toBe(GUJARATI_PAGES[0] as string);
+	expect(await Bun.file(join(out, "page-0001.md")).text()).toBe(`${GUJARATI_PAGES[0]}\n`);
 	expect(await manifestIn(out)).toEqual(result.manifest);
 });
 
@@ -178,7 +186,7 @@ test("flags a page that came back as impossible Gujarati", async () => {
 	const broken = "તો આખુું વરસ બબચારી ચાુંચ નનરાુંતે કહ્ુું આખુું નનરાુંતે બબચારી કહ્ુું";
 	const result = await ocrBook(
 		optionsFor(pagesDir, out),
-		fakeClient(() => broken),
+		fakeClient(() => [block(broken)]),
 	);
 	if (!result.ok) {
 		throw new Error(result.error);
@@ -360,7 +368,9 @@ test("points at the worst pages so proofing starts where it should", async () =>
 	const result = await runOcr([pagesDir, "--out", out], {
 		apiKey: "k",
 		makeClient: () =>
-			fakeClient((name) => (name === "page-0002.png" ? broken : (GUJARATI_PAGES[0] as string))),
+			fakeClient((name) => [
+				block(name === "page-0002.png" ? broken : (GUJARATI_PAGES[0] as string)),
+			]),
 	});
 	expect(result.text).toContain("start proofing here");
 	expect(result.text).toContain("page 2:");
@@ -377,4 +387,83 @@ test("says there is nothing to do rather than charging for it twice", async () =
 	});
 	expect(second.ok).toBe(true);
 	expect(second.text).toContain("nothing to do");
+});
+
+// --- what belongs in the text, and what does not --------------------------------------------
+
+test("keeps page furniture out of the body", async () => {
+	// A running head repeated 442 times would otherwise end up inside 442 verses.
+	const { body, notes, setAside } = partitionBlocks(
+		[
+			block("૫૬ ગોપાળાનંદસ્વામીની વાતો", "header", 1),
+			block(GUJARATI_PAGES[0] as string, "paragraph", 2),
+			block("૧. મૂળમાયા", "footer", 3),
+		],
+		"gujr",
+	);
+	expect(body.map((b) => b.tag)).toEqual(["paragraph"]);
+	expect(notes.map((b) => b.tag)).toEqual(["footer"]);
+	expect(setAside.map((b) => b.tag)).toEqual(["header"]);
+});
+
+test("sets aside a block that came back in the wrong script", async () => {
+	// The hazard seen on the first real page: asked to read a decorative glyph, the model
+	// answered with an English *description* of it, tagged `paragraph`, mid-page. Published
+	// unchecked, that sentence becomes scripture.
+	const description =
+		"This image contains no text. It displays three identical black heart symbols with curly lines on top against a white background.";
+	const { body, setAside } = partitionBlocks(
+		[block(GUJARATI_PAGES[0] as string, "paragraph", 1), block(description, "paragraph", 2)],
+		"gujr",
+	);
+	expect(body).toHaveLength(1);
+	expect(setAside[0]?.text).toBe(description);
+});
+
+test("records what it set aside rather than dropping it", async () => {
+	// Nothing the API returned may vanish without a trace — a silent drop is indistinguishable
+	// from text the OCR never saw.
+	const { pagesDir, out } = await rendered(1);
+	const result = await ocrBook(
+		optionsFor(pagesDir, out),
+		fakeClient(() => [
+			block("૫૬ ગોપાળાનંદસ્વામીની વાતો", "header", 1),
+			block(GUJARATI_PAGES[0] as string, "paragraph", 2),
+		]),
+	);
+	if (!result.ok) {
+		throw new Error(result.error);
+	}
+	expect(result.manifest.pages[0]?.setAside).toEqual([
+		{ tag: "header", text: "૫૬ ગોપાળાનંદસ્વામીની વાતો" },
+	]);
+});
+
+test("writes the blocks alongside the text", async () => {
+	// Tags, reading order and coordinates are what P1.3's side-by-side proofing view and verse
+	// segmentation both need; only keeping the joined text would throw them away.
+	const { pagesDir, out } = await rendered(1);
+	const result = await ocrBook(optionsFor(pagesDir, out), fakeClient());
+	if (!result.ok) {
+		throw new Error(result.error);
+	}
+	expect(result.manifest.pages[0]?.blocksFile).toBe("page-0001.blocks.json");
+
+	const written = (await Bun.file(join(out, "page-0001.blocks.json")).json()) as {
+		page: number;
+		widthPx: number;
+		blocks: { tag: string; bbox: number[] }[];
+	};
+	expect(written.page).toBe(1);
+	expect(written.widthPx).toBe(1414);
+	expect(written.blocks[0]?.bbox).toEqual([0, 0, 10, 10]);
+});
+
+test("puts notes below a rule instead of inside the discourse", async () => {
+	const markdown = renderPageMarkdown(
+		[block("શરીર", "paragraph", 1)],
+		[block("૧. મૂળમાયા", "footer", 2)],
+	);
+	expect(markdown).toBe("શરીર\n\n---\n\n૧. મૂળમાયા\n");
+	expect(renderPageMarkdown([block("શરીર", "paragraph", 1)], [])).toBe("શરીર\n");
 });

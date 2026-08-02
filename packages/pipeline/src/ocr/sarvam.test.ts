@@ -58,23 +58,73 @@ function stubApi(
 			});
 		}
 		if (url.pathname.endsWith("/results")) {
-			return json(
-				script.results ?? {
-					type: "digitise",
-					job_id: "job-1",
-					status: "completed",
-					documents: [
-						{ file_name: "page-0001.png", pages: [{ page_number: 1, content: "પ્રથમ પાનું" }] },
-						{ file_name: "page-0002.png", pages: [{ page_number: 1, content: "બીજું પાનું" }] },
-					],
-				},
-			);
+			return json(script.results ?? LIVE_SHAPED_RESULTS);
 		}
 		return json({ detail: "not found" }, 404);
 	};
 
 	return { calls, fetch: fetchStub };
 }
+
+/**
+ * The shape the API actually sends, taken from a real response — `filename`, `page_num` and
+ * `blocks`, none of which match its own published OpenAPI schema.
+ */
+const LIVE_SHAPED_RESULTS = {
+	job_id: "job-1",
+	type: "digitise",
+	status: "completed",
+	usage: { pages_total: 2, pages_processed: 2, pages_succeeded: 2, pages_failed: 0 },
+	documents: [
+		{
+			filename: "page-0001.png",
+			page_count: 1,
+			pages: [
+				{
+					page_num: 1,
+					image_width: 1414,
+					image_height: 2110,
+					blocks: [
+						{
+							block_id: "p1-b2",
+							text: "પ્રથમ પાનું",
+							layout_tag: "paragraph",
+							reading_order: 2,
+							coordinates: { x1: 132, y1: 275, x2: 1285, y2: 1692 },
+						},
+						{
+							block_id: "p1-b1",
+							text: "૫૬ ગોપાળાનંદસ્વામીની વાતો",
+							layout_tag: "header",
+							reading_order: 1,
+							coordinates: { x1: 113, y1: 24, x2: 1308, y2: 246 },
+						},
+					],
+				},
+			],
+		},
+		{
+			filename: "page-0002.png",
+			page_count: 1,
+			pages: [
+				{
+					page_num: 1,
+					image_width: 1414,
+					image_height: 2110,
+					blocks: [
+						{
+							block_id: "p1-b1",
+							text: "બીજું પાનું",
+							layout_tag: "paragraph",
+							reading_order: 1,
+							coordinates: { x1: 10, y1: 20, x2: 30, y2: 40 },
+						},
+					],
+				},
+			],
+		},
+	],
+};
 
 function client(api: ReturnType<typeof stubApi>, over: Partial<SarvamOptions> = {}): SarvamClient {
 	return new SarvamClient({
@@ -140,10 +190,36 @@ test("keeps each page's bytes to its own part", async () => {
 });
 
 test("names each part so the response can be matched back to a page", async () => {
+	// The API sends `filename`, not the `file_name` its own OpenAPI schema advertises. Getting
+	// this wrong matched nothing and reported every page as "returned no text".
 	const api = stubApi();
 	const result = await client(api).digitise(pages);
 	expect(result.pages.map((page) => page.fileName)).toEqual(["page-0001.png", "page-0002.png"]);
-	expect(result.pages[0]?.content).toBe("પ્રથમ પાનું");
+	expect(result.pages[0]?.blocks[1]?.text).toBe("પ્રથમ પાનું");
+});
+
+test("reads the blocks the API really returns, with their tags and boxes", async () => {
+	const api = stubApi();
+	const result = await client(api).digitise(pages);
+	const page = result.pages[0];
+
+	expect(page?.widthPx).toBe(1414);
+	expect(page?.heightPx).toBe(2110);
+	// Sorted into reading order, whatever order they arrived in.
+	expect(page?.blocks.map((block) => block.tag)).toEqual(["header", "paragraph"]);
+	expect(page?.blocks[0]?.bbox).toEqual([113, 24, 1308, 246]);
+	expect(page?.blocks[0]?.id).toBe("p1-b1");
+});
+
+test("still copes if they ever ship the shape they documented", async () => {
+	const api = stubApi({
+		results: {
+			documents: [{ file_name: "page-0001.png", pages: [{ page_number: 1, content: "કંઈક" }] }],
+		},
+	});
+	const result = await client(api).digitise(pages);
+	expect(result.pages[0]?.fileName).toBe("page-0001.png");
+	expect(result.pages[0]?.blocks[0]?.text).toBe("કંઈક");
 });
 
 test("refuses a batch bigger than the API accepts", async () => {

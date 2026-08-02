@@ -61,11 +61,29 @@ export type PageFile = {
 	readonly bytes: Uint8Array;
 };
 
+/**
+ * A region of a page, as Sarvam classified it.
+ *
+ * The single most useful thing this API gives us: the running head, the body and the footnote
+ * arrive already told apart, which is the apparatus problem P1.2 would otherwise have to solve
+ * from coordinates and guesswork.
+ */
+export type Block = {
+	readonly id: string;
+	readonly text: string;
+	/** `paragraph`, `header`, `footer`, `footnote`, `page-number`, `folio`, `table`, `image`… */
+	readonly tag: string;
+	readonly readingOrder: number;
+	/** `[x1, y1, x2, y2]` in image pixels, so a block maps back onto the rendered page. */
+	readonly bbox: readonly [number, number, number, number];
+};
+
 export type DigitisedPage = {
 	readonly fileName: string;
 	readonly pageNumber: number;
-	/** Markdown or HTML, per `outputFormat`. */
-	readonly content: string;
+	readonly widthPx: number;
+	readonly heightPx: number;
+	readonly blocks: readonly Block[];
 };
 
 export type JobUsage = {
@@ -256,19 +274,70 @@ export class SarvamClient {
 		};
 	}
 
+	/**
+	 * Fetch a finished job's pages.
+	 *
+	 * The field names here are what the API *actually* sends, which is not what its published
+	 * OpenAPI schema describes: `filename` not `file_name`, `page_num` not `page_number`, and
+	 * `blocks` rather than a single `content` string. Both spellings are accepted so a future
+	 * correction on their side does not break this.
+	 */
 	async getResults(jobId: string): Promise<DigitisedPage[]> {
 		const response = await this.request(`/doc-ai/v1/job/${jobId}/results`);
 		const body = (await response.json()) as {
-			documents?: { file_name?: string; pages?: { page_number?: number; content?: string }[] }[];
+			documents?: {
+				filename?: string;
+				file_name?: string;
+				pages?: {
+					page_num?: number;
+					page_number?: number;
+					image_width?: number;
+					image_height?: number;
+					blocks?: {
+						block_id?: string;
+						text?: string;
+						layout_tag?: string;
+						reading_order?: number;
+						coordinates?: { x1?: number; y1?: number; x2?: number; y2?: number };
+					}[];
+					content?: string;
+				}[];
+			}[];
 		};
 
 		const pages: DigitisedPage[] = [];
 		for (const document of body.documents ?? []) {
 			for (const page of document.pages ?? []) {
+				const blocks: Block[] = (page.blocks ?? []).map((block, index) => ({
+					id: block.block_id ?? `b${index + 1}`,
+					text: block.text ?? "",
+					tag: block.layout_tag ?? "paragraph",
+					readingOrder: block.reading_order ?? index + 1,
+					bbox: [
+						block.coordinates?.x1 ?? 0,
+						block.coordinates?.y1 ?? 0,
+						block.coordinates?.x2 ?? 0,
+						block.coordinates?.y2 ?? 0,
+					] as const,
+				}));
+
+				// Fall back to a plain `content` string if they ever ship the documented shape.
+				if (blocks.length === 0 && typeof page.content === "string" && page.content !== "") {
+					blocks.push({
+						id: "b1",
+						text: page.content,
+						tag: "paragraph",
+						readingOrder: 1,
+						bbox: [0, 0, 0, 0] as const,
+					});
+				}
+
 				pages.push({
-					fileName: document.file_name ?? "",
-					pageNumber: page.page_number ?? 1,
-					content: page.content ?? "",
+					fileName: document.filename ?? document.file_name ?? "",
+					pageNumber: page.page_num ?? page.page_number ?? 1,
+					widthPx: page.image_width ?? 0,
+					heightPx: page.image_height ?? 0,
+					blocks: blocks.sort((a, b) => a.readingOrder - b.readingOrder),
 				});
 			}
 		}

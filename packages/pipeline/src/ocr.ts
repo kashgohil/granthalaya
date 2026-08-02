@@ -12,8 +12,14 @@
 
 import { mkdir } from "node:fs/promises";
 import { basename, join } from "node:path";
-import { checkOrthography, type OrthographyReport, profileScript } from "@granthalaya/core";
 import {
+	checkOrthography,
+	type OrthographyReport,
+	profileScript,
+	type Script,
+} from "@granthalaya/core";
+import {
+	type Block,
 	batchPages,
 	estimateRupees,
 	MAX_PAGES_PER_JOB,
@@ -42,7 +48,6 @@ export type OcrOptions = {
 	readonly pagesDir: string;
 	readonly out: string;
 	readonly language: string;
-	readonly outputFormat: "md" | "html";
 	readonly contentType: "printed" | "handwritten" | "mixed";
 	readonly pages: readonly PageRange[] | null;
 	readonly force: boolean;
@@ -67,7 +72,6 @@ export const OCR_USAGE = [
 	`  --out <dir>          where to write the text (default ${DEFAULT_OCR_ROOT}/<book>)`,
 	"  --pages <spec>       which pages: 12, 1-40, 300-, or a comma-separated mix",
 	"  --language <tag>     BCP-47 document language (default gu-IN)",
-	"  --format <fmt>       md or html (default md)",
 	"  --content-type <t>   printed, handwritten or mixed (default printed)",
 	"  --dry-run            show the plan and the cost, call nothing",
 	`  --yes                confirm a run of more than ${CONFIRM_ABOVE_PAGES} pages`,
@@ -80,7 +84,6 @@ export function parseOcrArgs(args: readonly string[]): OcrArgs {
 	const positional: string[] = [];
 	let out: string | null = null;
 	let language = "gu-IN";
-	let outputFormat: "md" | "html" = "md";
 	let contentType: "printed" | "handwritten" | "mixed" = "printed";
 	let pages: readonly PageRange[] | null = null;
 	let force = false;
@@ -111,12 +114,6 @@ export function parseOcrArgs(args: readonly string[]): OcrArgs {
 				return { ok: false, error: "--language needs a BCP-47 tag, e.g. gu-IN" };
 			}
 			language = value;
-		} else if (arg === "--format") {
-			const value = takeValue();
-			if (value !== "md" && value !== "html") {
-				return { ok: false, error: "--format needs md or html" };
-			}
-			outputFormat = value;
 		} else if (arg === "--content-type") {
 			const value = takeValue();
 			if (value !== "printed" && value !== "handwritten" && value !== "mixed") {
@@ -164,7 +161,6 @@ export function parseOcrArgs(args: readonly string[]): OcrArgs {
 			pagesDir,
 			out: out ?? join(DEFAULT_OCR_ROOT, basename(pagesDir.replace(/\/+$/, ""))),
 			language,
-			outputFormat,
 			contentType,
 			pages,
 			force,
@@ -175,10 +171,75 @@ export function parseOcrArgs(args: readonly string[]): OcrArgs {
 	};
 }
 
+/**
+ * Page furniture: true of the page, not of the text. Kept in the per-page JSON, never joined
+ * into the body — a running head repeated 442 times would end up inside 442 verses.
+ */
+export const APPARATUS_TAGS = new Set(["header", "page-number", "folio"]);
+
+/**
+ * Notes are real content — glosses P1.4 will want as a layer — but they are not body text, so
+ * they go below a rule rather than into the middle of a discourse.
+ */
+export const NOTE_TAGS = new Set(["footer", "footnote"]);
+
+/** Blocks that carry no transcribable text at all. */
+export const NON_TEXT_TAGS = new Set(["image", "photograph", "chart", "diagram", "advertisement"]);
+
+/**
+ * Split a page's blocks into what belongs in the text and what does not.
+ *
+ * The third bucket exists because of a real hazard: asked to read a decorative glyph, the model
+ * answered *"This image contains no text. It displays three identical black heart symbols…"* —
+ * an English description, tagged `paragraph`, sitting mid-page. Left alone it would be
+ * published as scripture. Any block that is Latin where the book is Indic is set aside, and
+ * recorded rather than dropped, so nothing disappears without a trace.
+ */
+export function partitionBlocks(
+	blocks: readonly Block[],
+	script: Script,
+): { body: Block[]; notes: Block[]; setAside: Block[] } {
+	const body: Block[] = [];
+	const notes: Block[] = [];
+	const setAside: Block[] = [];
+
+	for (const block of [...blocks].sort((a, b) => a.readingOrder - b.readingOrder)) {
+		if (block.text.trim() === "") {
+			continue;
+		}
+		if (APPARATUS_TAGS.has(block.tag) || NON_TEXT_TAGS.has(block.tag)) {
+			setAside.push(block);
+			continue;
+		}
+		const profile = profileScript(block.text);
+		if (profile.total > 0 && profile.dominant !== script) {
+			setAside.push(block);
+			continue;
+		}
+		(NOTE_TAGS.has(block.tag) ? notes : body).push(block);
+	}
+
+	return { body, notes, setAside };
+}
+
+/** The page as a human should read it: body in reading order, notes below a rule. */
+export function renderPageMarkdown(body: readonly Block[], notes: readonly Block[]): string {
+	const text = body.map((block) => block.text.trim()).join("\n\n");
+	if (notes.length === 0) {
+		return `${text}\n`;
+	}
+	return `${text}\n\n---\n\n${notes.map((block) => block.text.trim()).join("\n\n")}\n`;
+}
+
 export type OcrPageResult = {
 	readonly number: number;
 	readonly file: string;
+	/** Blocks, tags and coordinates — what P1.3's proofing view and verse segmentation need. */
+	readonly blocksFile: string;
 	readonly chars: number;
+	readonly blocks: number;
+	/** Blocks kept out of the text: page furniture, and anything that came back in the wrong script. */
+	readonly setAside: readonly { readonly tag: string; readonly text: string }[];
 	/** What script the text came back as — a Latin answer means something went badly wrong. */
 	readonly script: string;
 	readonly scriptShare: number;
@@ -197,7 +258,6 @@ export type OcrManifest = {
 	readonly sourceSha256: string;
 	readonly engine: string;
 	readonly language: string;
-	readonly outputFormat: string;
 	readonly contentType: string;
 	readonly pageCount: number;
 	readonly pages: readonly OcrPageResult[];
@@ -222,8 +282,8 @@ function scoreOf(report: OrthographyReport): OcrPageResult["orthography"] {
 	};
 }
 
-function pageTextFile(imageFile: string, outputFormat: string): string {
-	return `${imageFile.replace(/\.[^.]+$/, "")}.${outputFormat}`;
+function pageTextFile(imageFile: string, extension: string): string {
+	return `${imageFile.replace(/\.[^.]+$/, "")}.${extension}`;
 }
 
 async function readJson<T>(path: string): Promise<T | null> {
@@ -290,20 +350,38 @@ export async function ocrBook(
 
 		try {
 			const result = await client.digitise(files);
-			const byName = new Map(result.pages.map((page) => [page.fileName, page.content]));
+			const byName = new Map(result.pages.map((page) => [page.fileName, page]));
 
 			for (const page of batch) {
-				const text = byName.get(page.file);
-				if (text === undefined) {
+				const digitised = byName.get(page.file);
+				if (digitised === undefined) {
 					failures.push({ number: page.number, error: "the job returned no text for this page" });
 					continue;
 				}
-				const file = pageTextFile(page.file, options.outputFormat);
+
+				const { body, notes, setAside } = partitionBlocks(digitised.blocks, "gujr");
+				const text = renderPageMarkdown(body, notes);
+				const file = pageTextFile(page.file, "md");
+				const blocksFile = pageTextFile(page.file, "blocks.json");
 				await Bun.write(join(options.out, file), text);
+				// The blocks are the richer artefact — tags, reading order and coordinates are what
+				// P1.3's side-by-side proofing view and verse segmentation both need. Nothing the
+				// API returned is discarded, including what was kept out of the text.
+				await Bun.write(
+					join(options.out, blocksFile),
+					`${JSON.stringify({ page: page.number, widthPx: digitised.widthPx, heightPx: digitised.heightPx, blocks: digitised.blocks }, null, "\t")}\n`,
+				);
+
 				const profile = profileScript(text);
 				results.push({
 					number: page.number,
 					file,
+					blocksFile,
+					blocks: digitised.blocks.length,
+					setAside: setAside.map((block) => ({
+						tag: block.tag,
+						text: block.text.length > 120 ? `${block.text.slice(0, 117)}…` : block.text,
+					})),
 					chars: text.length,
 					script: profile.dominant ?? "none",
 					scriptShare: Math.round(profile.share * 1000) / 1000,
@@ -334,7 +412,6 @@ export async function ocrBook(
 		sourceSha256: manifest.sourceSha256,
 		engine: "sarvam-vision-v1",
 		language: options.language,
-		outputFormat: options.outputFormat,
 		contentType: options.contentType,
 		pageCount: manifest.pageCount,
 		pages: [...merged.values()].sort((a, b) => a.number - b.number),
@@ -418,7 +495,7 @@ export async function runOcr(
 			text: [
 				`${options.pagesDir} → ${options.out}`,
 				`  ${plural(plan.total, "page")} selected, ${estimate}`,
-				`  ${options.language}, ${options.contentType}, ${options.outputFormat}`,
+				`  ${options.language}, ${options.contentType}`,
 				"  dry run — nothing was sent",
 			].join("\n"),
 		};
@@ -453,7 +530,6 @@ export async function runOcr(
 	const client = make({
 		apiKey,
 		language: options.language,
-		outputFormat: options.outputFormat,
 		contentType: options.contentType,
 		requestsPerMinute: options.requestsPerMinute,
 	});
