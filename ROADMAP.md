@@ -220,11 +220,19 @@ throughput.*
 - [x] Page rendering: PDF → high-res page images (per-page, deterministic naming).
       `bun run render <pdf>` — 300 DPI greyscale PNG by default, resumable, with a manifest
       that pins the output to the source file by content hash
-- [ ] **Choose the OCR engine** — Google Cloud Vision `DOCUMENT_TEXT_DETECTION` with
-      `languageHints: ["gu"]` needs a GCP project and billing; self-hosted Surya runs local
-      and free. Needs a decision before the next item can start
-- [ ] OCR integration (use whatever is optimal per book; keep the engine behind one interface
-      so a book can be re-run through the other and diffed)
+- [x] **OCR engine chosen: Sarvam Vision** (`sarvam-vision-v1`, Doc AI *digitise*). The only
+      candidate trained on Indic documents rather than treating Gujarati as one language among
+      a hundred, and the only one that classifies page regions — `footnote`, `header`,
+      `page-number`, `folio` — which is the apparatus that must stay out of scripture text.
+      ₹0.5/page, so the first book costs about ₹221
+- [x] OCR integration: `bun run ocr <pages-dir>`. Batches to the API's 10-page jobs, respects
+      its 10 req/min limit, resumes, and scores every page with `checkOrthography` as it lands
+- [ ] **Run it against the live API** — needs a `SARVAM_API_KEY`. The client is tested against
+      a stub only; nothing has been sent to Sarvam yet, so the real response shape, the actual
+      Gujarati accuracy and the ₹ cost are all still unverified
+- [ ] Compare against a second engine on the same 20 pages (Gemini 3, Cloud Vision, Surya) and
+      keep whichever wins — the engine sits behind one interface so a book can be re-run and
+      diffed
 - [ ] Post-processing pass: Unicode NFC normalization, pre-base matra reorder repair,
       conjunct sanity checks — `checkOrthography` from P1.1 is the gate this pass has to pass
 - [ ] Structure detection: chapter/verse boundaries from numbering; verse-number sequence used
@@ -612,6 +620,11 @@ Each mode is a self-contained exercise over a recital item.
 | 2026-08-01 | Orthography rules describe only what the writing system **forbids**, never what it prefers | Clean text must score exactly zero or the check is a tuning exercise rather than a gate. Measured: 0 violations on correct Gujarati, 50 per 1000 letters on the corrupt file — the threshold sits at 1, with forty-five times of headroom. Anusvara and visarga are deliberately excluded from "vowel signs", or `ું` — the commonest spelling in the language — would read as a violation |
 | 2026-08-01 | **Pre-base matras are the diagnostic** for a broken mapping | A PDF stores glyphs in visual order, so `િ` sits *before* the consonant it follows; emitting correct Unicode means reordering it back, and a mapping that gets anything wrong gets that wrong first. Common enough that a page of prose without one is mechanically impossible |
 | 2026-08-01 | A missing `ToUnicode` map is only reported when the font **also** lacks a standard encoding | The first version flagged Helvetica and Calibri — which extract perfectly from `WinAnsiEncoding` — while saying nothing about the Shruti font whose map was actually wrong. It pointed the reader at the wrong evidence, which is worse than reporting nothing |
+| 2026-08-02 | **Sarvam Vision is the OCR engine** | No public benchmark isolates Gujarati, so the choice rests on adjacent evidence: on real Devanagari scans the field spread 76 chrF++ points (Gemini 86.3, Claude 82.2, GPT-5.5 58.5), and every VLM tested failed specifically on conjuncts, matras and nukta — our content. Sarvam is the only candidate trained on Indic documents rather than treating Gujarati as one language among a hundred (87.36% avg word accuracy across 22 Indian languages on its own bench; 84.3% on the independent olmOCR-Bench, above Gemini 3 Pro's 80.2%), and the only one that classifies `footnote`/`header`/`page-number`/`folio` regions. Tesseract is ruled out: F1 0.797 on Gujarati against PaddleOCR's 0.938 |
+| 2026-08-02 | OCR takes **the rendered images, never the source PDF** | The PDF's text layer is the thing P1.1 established we cannot trust, and handing the file to the engine invites it back in. The images are also what the render manifest pins by hash, so what was OCR'd is exactly what a human later proofreads |
+| 2026-08-02 | The OCR manifest **carries the source hash forward** from the render manifest | Chain of custody: *this PDF* → *these images* → *this text*. Proofed scripture that cannot be tied back to the edition it came from is not publishable, and the tie has to survive each hop rather than be reconstructed at the end |
+| 2026-08-02 | Every OCR'd page is **scored with `checkOrthography` as it lands** | P1.1's gate becomes P1.2's instrument for free. It cannot prove the right word was read, but it catches every word Gujarati cannot spell without a ground-truth transcript, on every page — and it ranks the worst pages, so proofing starts where the evidence points instead of at page one |
+| 2026-08-02 | A run of more than **50 pages needs `--yes`** | The first command in this repo that spends money. `--dry-run` prices a run without sending anything and finished pages are never re-read; the gate is small enough to try a chapter freely and large enough that a whole book is a deliberate act |
 | 2026-08-02 | Rendered pages default to **300 DPI greyscale PNG** | 300 is the floor every OCR engine asks for on printed text, and it verified legible on a 4.7×7in trim size where the type is physically small. Greyscale because engines binarize anyway and it is a third of the bytes; PNG because JPEG rings around thin strokes and a Gujarati conjunct is mostly thin strokes. `--color` exists for editions that print headings or Sanskrit in red |
 | 2026-08-02 | A page is rendered **as published**: no alpha, no annotations | An OCR engine wants ink on white, and a transparent background flattens to black. Annotations are skipped because a previous reader's highlight is an annotation, and it would end up in the scripture |
 | 2026-08-02 | The page manifest **pins its images to the source file by SHA-256** | These images are the source of truth for every verse OCR'd out of them, so the tie has to be to one exact file rather than to a name. A re-downloaded or swapped PDF hashes differently and cannot be silently OCR'd as the edition that was proofed |
@@ -631,8 +644,19 @@ Each mode is a self-contained exercise over a recital item.
   section-end markers that are exactly the work boundaries structure detection wants,
   footnotes below a rule, and Devanagari shlokas inline in Gujarati pages.
   Spec: `docs/page-rendering.md`.
-  Next: **choose the OCR engine** — Cloud Vision needs a GCP project and billing, Surya runs
-  local and free — which is what unblocks the rest of P1.2.
+- **2026-08-02** — **The OCR engine is chosen and wired up: Sarvam Vision.** `bun run ocr
+  <pages-dir>` reads what `render` wrote — never the PDF, whose text layer is the thing we
+  established we cannot trust — batches into the API's 10-page jobs, respects its 10 req/min
+  limit, resumes, and carries the render manifest's source hash forward so *this PDF* → *these
+  images* → *this text* stays one unbroken chain. Every page is scored with P1.1's
+  `checkOrthography` as it lands, which turns that gate into a free per-page quality signal and
+  ranks the worst pages so proofing starts where the evidence points. It is the first command
+  here that spends money, so `--dry-run` prices a run, more than fifty pages needs `--yes`, and
+  finished pages are never re-read. **Tested against a stub only — nothing has been sent to
+  Sarvam yet.**
+  Next: **a `SARVAM_API_KEY` and twenty real pages** — the accuracy, the response shape and the
+  cost are all still unverified, and a second engine on the same pages is what settles the
+  choice.
 - **2026-08-01** — **P1.1's tool landed: PDF triage.** `bun run triage <path>` walks a folder
   of PDFs and decides, per file, whether its text layer can be trusted or whether the book has
   to be rendered and OCR'd — then writes the inventory as markdown and as JSON for P1.2.
