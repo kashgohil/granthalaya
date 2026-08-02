@@ -34,6 +34,14 @@ test("triage is registered", () => {
 	});
 });
 
+test("render is registered", () => {
+	expect(parseArgv(["render", "book.pdf", "--dpi", "300"])).toEqual({
+		ok: true,
+		command: "render",
+		args: ["book.pdf", "--dpi", "300"],
+	});
+});
+
 test("usage lists every registered command", () => {
 	const text = usage();
 	for (const name of Object.keys(COMMANDS)) {

@@ -8,6 +8,7 @@
 /** Every command the CLI understands, mapped to its one-line help text. */
 export const COMMANDS = {
 	help: "Show this help text",
+	render: "Render a PDF's pages to images for OCR and proofing (render <file.pdf>)",
 	triage: "Inventory a folder of PDFs and pick an extraction strategy (triage <path>...)",
 	validate: "Check a book package against the format spec (validate <path>...)",
 	version: "Print pipeline and core versions",
