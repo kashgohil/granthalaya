@@ -16,12 +16,18 @@
  *
  * `contentStatus` comes out as `proofed`, not `published`. Publishing is P1.5's catalog step, and
  * keeping them apart is what lets a proofed book sit and be re-read before anyone installs it.
+ *
+ * **Once a version has been published, export also retires refs** (`aliases.ts`). Ids churn freely
+ * in a draft because no reader holds any of them; from the first publish onwards, every ref the
+ * published version resolved has to point somewhere in this one, and that map is compiled into the
+ * package here. Publishing then audits it independently — a check on this step, not a repeat of it.
  */
-import { join } from "node:path";
 import type { Book, BookUnit, BookVerse } from "@granthalaya/core";
-import { hashVerse, validateBook } from "@granthalaya/core";
+import { compareVersions, hashVerse, parseBook, validateBook } from "@granthalaya/core";
 import type { Db, DivisionRow, VerseRow } from "@granthalaya/db";
-import { resolveInContent } from "./content.ts";
+import { latestRelease, readPackageBytes } from "../catalog/service.ts";
+import { deriveAliases } from "./aliases.ts";
+import { proofedPackagePath, resolveInContent } from "./content.ts";
 import { orderedStructure } from "./restructure.ts";
 import { getBookRow, statusCounts, stillNeedsHuman } from "./service.ts";
 
@@ -124,7 +130,7 @@ export async function exportBook(
 	}
 
 	const contentVersion = options.contentVersion ?? manifest.contentVersion;
-	const relative = join(book.packageDir, "proofed", `${bookId}-${contentVersion}.json`);
+	const relative = proofedPackagePath(book.packageDir, bookId, contentVersion);
 	const target = resolveInContent(contentDir, relative);
 	if (await Bun.file(target).exists()) {
 		reasons.push(
@@ -132,17 +138,47 @@ export async function exportBook(
 		);
 	}
 
+	// What has already been handed out. Everything below that touches it is about one question —
+	// which refs a reader might be holding — and the draft's own history cannot answer it: a ref
+	// that existed for an hour between two re-imports was never given to anybody.
+	const publishedRow = await latestRelease(db, bookId);
+	let published: Book | undefined;
+	if (publishedRow !== undefined) {
+		if (compareVersions(contentVersion, publishedRow.contentVersion) <= 0) {
+			reasons.push(
+				`${bookId}@${publishedRow.contentVersion} is already published, so ${contentVersion} could never be published over it. Bump contentVersion — a correction is a new version, never an edit to one already handed out.`,
+			);
+		}
+		const bytes = await readPackageBytes(contentDir, publishedRow);
+		published = bytes.ok
+			? parseBook(JSON.parse(new TextDecoder().decode(bytes.data))).book
+			: undefined;
+		if (published === undefined) {
+			reasons.push(
+				`The published ${publishedRow.contentVersion} could not be read, so this export cannot work out which refs it retires: ${
+					bytes.ok ? "it no longer parses as a package." : bytes.reason
+				}`,
+			);
+		}
+	}
+
 	if (reasons.length > 0 && options.dryRun !== true) {
 		return { ok: false, reasons };
 	}
 
 	const { divisions: divisionRows, verses: verseRows } = await orderedStructure(db, bookId);
-	const compiled: Book = {
-		...manifest,
+	// `aliases` is never inherited from the manifest: it describes this version's relationship to
+	// the published one, so it is re-derived every time rather than carried along.
+	const { aliases: _inherited, ...withoutAliases } = manifest;
+	const base: Book = {
+		...withoutAliases,
 		contentVersion,
 		contentStatus: "proofed",
 		structure: buildStructure(divisionRows, verseRows, manifest.primaryLayer),
 	};
+	const aliases =
+		published === undefined ? undefined : deriveAliases(bookId, published, base, verseRows);
+	const compiled: Book = aliases === undefined ? base : { ...base, aliases };
 
 	// The package is validated against P0.2 before it is written. A studio that can produce an
 	// invalid package is a bug in the studio, not something to hand to the catalog and find out.

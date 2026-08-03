@@ -13,6 +13,8 @@
 import type { Db } from "@granthalaya/db";
 import { t } from "elysia";
 import { type AdminConfig, adminInstance, adminRejection } from "../admin/guard.ts";
+import { publishBook } from "../catalog/publish.ts";
+import { listReleases, releaseSummary } from "../catalog/service.ts";
 import { pageContext, patchNote, resolveSetAside } from "./apparatus.ts";
 import { ContentError, listDrafts, pageImagePath, readDraft } from "./content.ts";
 import { exportBook } from "./export.ts";
@@ -80,7 +82,14 @@ export function createStudio({ credentials, db, contentDir }: StudioOptions) {
 
 			.get("/admin/books/:bookId", async ({ params, status }) => {
 				const overview = await getBookOverview(db, params.bookId);
-				return overview ?? status(404, { error: `No book ${params.bookId} in the studio.` });
+				if (overview === null) {
+					return status(404, { error: `No book ${params.bookId} in the studio.` });
+				}
+				// What has already been handed out, beside what is being worked on. The studio is
+				// the only place both are visible, and the pair is what makes the next version's
+				// bump an informed decision rather than a guess.
+				const published = await listReleases(db, params.bookId);
+				return { ...overview, releases: published.map(releaseSummary) };
 			})
 
 			.patch(
@@ -318,6 +327,31 @@ export function createStudio({ credentials, db, contentDir }: StudioOptions) {
 					// A refusal is the expected outcome most of the time, and it carries the list of
 					// things to go and fix — 409 rather than 400, because nothing about the request
 					// was wrong.
+					return result.ok ? result : status(409, result);
+				},
+				{
+					body: t.Optional(
+						t.Object({
+							contentVersion: t.Optional(t.String()),
+							dryRun: t.Optional(t.Boolean()),
+						}),
+					),
+				},
+			)
+
+			// ── Publish ────────────────────────────────────────────────────────────────────────
+			// The studio's half of P1.5: it hands an already-exported package to the catalog. It
+			// lives here rather than in `modules/catalog/` because it is an admin action and the
+			// session gate is a property of this instance; the work itself is `catalog/publish.ts`.
+			.post(
+				"/admin/books/:bookId/publish",
+				async ({ params, body, status }) => {
+					const result = await publishBook(db, contentDir, params.bookId, body ?? {});
+					if (result === null) {
+						return status(404, { error: `No book ${params.bookId} in the studio.` });
+					}
+					// Same shape as export: a refusal carries the list of things to go and fix, and
+					// nothing about the request was wrong, so 409 rather than 400.
 					return result.ok ? result : status(409, result);
 				},
 				{

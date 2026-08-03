@@ -191,6 +191,22 @@ export async function readDraft(contentDir: string, dir: string): Promise<Draft>
 	return { dir, book, report, pagesDir, pageManifest };
 }
 
+/**
+ * Where a compiled package lives, relative to the content root.
+ *
+ * Two directories, one shape, and the difference between the words is the gate: `proofed/` is
+ * what export writes once every passage is approved, `published/` is what the catalog serves.
+ * Both are named for the version, because a version is written once and the filename is the
+ * cheapest possible enforcement of that.
+ */
+export function proofedPackagePath(packageDir: string, bookId: string, version: string): string {
+	return join(packageDir, "proofed", `${bookId}-${version}.json`);
+}
+
+export function publishedPackagePath(packageDir: string, bookId: string, version: string): string {
+	return join(packageDir, "published", `${bookId}-${version}.json`);
+}
+
 /** The file behind `GET /admin/books/:id/pages/:page`. */
 export function pageImagePath(contentDir: string, pagesDir: string, file: string): string {
 	return resolveInContent(contentDir, join(pagesDir, file));
