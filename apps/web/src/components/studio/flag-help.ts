@@ -41,7 +41,8 @@ const FLAGS: Record<string, FlagHelp> = {
 	},
 	"contains-quotation": {
 		label: "Quotation",
-		description: "Contains quotation marks; check that speech boundaries are correct.",
+		description:
+			"Carries a run in another script — usually a Sanskrit shloka quoted mid-discourse.",
 	},
 };
 
