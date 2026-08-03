@@ -28,6 +28,13 @@ export {
 export type { FontFace, FontFamilySpec, FontRole, FontWeight } from "./fonts.ts";
 export { FONT_FACES, fontFaceId, fontFamily, fontFamilyStack } from "./fonts.ts";
 export type {
+	NormalizedText,
+	NormalizeOptions,
+	TextRepair,
+	TextRepairKind,
+} from "./normalize.ts";
+export { normalizeScriptureText } from "./normalize.ts";
+export type {
 	OrthographyReport,
 	OrthographyViolation,
 	OrthographyViolationKind,
