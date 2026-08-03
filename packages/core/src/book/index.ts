@@ -57,6 +57,8 @@ export {
 	VerseSchema,
 	WordGlossSchema,
 } from "./schema.ts";
+export type { DivisionNumbers, SequenceReport, SequenceRun } from "./sequence.ts";
+export { checkVerseSequence } from "./sequence.ts";
 export type { UnitVisit, VerseVisit } from "./tree.ts";
 export { bookVerses, countVerses, findUnit, findVerse, walkBook } from "./tree.ts";
 export type { BookIssue, BookValidation, IssueSeverity } from "./validate.ts";
