@@ -81,6 +81,30 @@ the whole match, because two danda groups can share a danda — page 153 flatten
 marker and a passage number into `॥२॥૧૫૮॥`, and consuming the first would take the danda the
 second needs.
 
+#### The one exception: a number flattened into the quotation's script
+
+Sarvam, reading a Devanagari line, returns that same page 153 pair as `॥२॥१५८॥` — *both*
+numbers in Devanagari, the passage's own among them. Refusing the pair outright merged ૧૫૮ into
+૧૫૯, and six passages of the first real book were lost that way.
+
+So a number in an admitted-but-foreign script is read as the passage's own when **both** of
+these hold, neither being sufficient alone:
+
+- **Adjacency** — it directly abuts another danda group, sharing its danda or separated only by
+  spaces. This is the flattening, and it is what a lone `॥१॥` never has.
+- **Continuation** — it is exactly one past the last passage closed. A quotation's own ordinals
+  are small and restart inside every shloka, so they do not continue a run numbered past 200.
+
+The pair is the whole of the evidence, and it is narrow by measurement rather than by hope:
+across the first book's 442 pages this shape occurs **six times and all six are this fault**,
+while its **22 lone Devanagari markers are all genuine** and stay refused. The recovered number
+is written back in the book's own digits, because that is what the page prints, and the passage
+is flagged `recovered-number` — a repair to confirm against the page, not a reading to trust.
+
+A double danda also reaches this stage in two forms: `॥` (U+0965), and `।।` (U+0964 twice) in
+six blocks of the first book — the same mark, read as its parts. Both are matched when *finding*
+structure; neither is rewritten in the text, which stays exactly as the OCR wrote it.
+
 ### An untitled division takes the head printed across its pages
 
 A division reaches the end untitled when the edition gave the OCR nothing to tag — text before
@@ -202,6 +226,7 @@ score exists to *order* the proofing queue, not to decide anything.
 | `no-number` | 0.35 | No printed number, so no identity of its own in the edition |
 | `duplicate-number` | 0.30 | Its number repeats one already seen |
 | `out-of-sequence` | 0.30 | Its number does not follow the previous one |
+| `recovered-number` | 0.20 | Its number was read in the quotation's script and recovered from the run |
 | `very-short` | 0.15 | Short enough to be a fragment |
 | `spans-pages` | 0.10 | The one join the OCR could not see for itself |
 | `hyphen-join` | 0.05 | A word was closed up across a line break |
