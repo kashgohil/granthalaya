@@ -233,16 +233,32 @@ throughput.*
       documents — so the running head, body and footnote arrive already told apart
 - [ ] Run the remaining 438 pages — deliberately deferred until P1.3 can receive the text;
       the images are banked and OCR only gets better with time
-- [ ] Compare against a second engine on the same 20 pages (Gemini 3, Cloud Vision, Surya) and
-      keep whichever wins — the engine sits behind one interface so a book can be re-run and
-      diffed
-- [ ] Post-processing pass: Unicode NFC normalization, pre-base matra reorder repair,
-      conjunct sanity checks — `checkOrthography` from P1.1 is the gate this pass has to pass
-- [ ] Structure detection: chapter/verse boundaries from numbering; verse-number sequence used
+- [x] ~~Compare against a second engine on the same 20 pages~~ — **dropped 2026-08-03.** Sarvam
+      stays. The engine was chosen for its layout blocks, which no other candidate returns, so a
+      comparison could not have changed the decision; and the accuracy backstop is P1.3's human
+      proofing, which is mandatory whatever the engine. The engine still sits behind one
+      interface, so this is reversible if a book comes back badly read
+- [x] Post-processing pass: Unicode NFC normalization, pre-base matra reorder repair,
+      conjunct sanity checks — `checkOrthography` from P1.1 is the gate this pass has to pass.
+      `normalizeScriptureText` in `packages/core/src/text/normalize.ts`; its governing rule is
+      that it is a **no-op on clean text**, so every repair is something the writing system
+      forbids or the typesetter demonstrably inserted, and each is reported individually
+- [x] Structure detection: chapter/verse boundaries from numbering; verse-number sequence used
       as a checksum (flag missing/duplicate verses). **Numbers are in Gujarati digits** and the
       printed page number is not the PDF page number — see `docs/page-rendering.md`
-- [ ] Output: draft book package (P0.2 format) + per-verse confidence scores
+- [x] Output: draft book package (P0.2 format) + per-verse confidence scores.
+      `bun run assemble <ocr-dir>` writes `book.json` and an `assembly.json` sidecar
+- [ ] **Verify the >95% bar on a full book** — the four OCR'd pages segment perfectly (6/6
+      numbered passages, both page-spanning joins, the section boundary, zero orthography
+      violations), but four pages is not a measurement. Needs the remaining 438 pages
 - **Done when:** the first book emerges as a draft package with >95% of verses auto-segmented correctly.
+
+  *Assembly landed 2026-08-03.* `packages/pipeline/src/assemble/` splits into `read.ts` (reads
+  back the per-page blocks, never the markdown), `segment.ts` (pure: the state machine over
+  blocks in reading order) and `package.ts` (pure: the P0.2 package plus the proofing queue).
+  The grammar comes off the pages themselves: `॥૬૨॥` closes a passage and gives it its id,
+  `॥ … સમાપ્ત ॥` closes a work, a `section-title` block opens one, and a passage simply carries
+  on across a page break. Spec: `docs/assembly.md`.
 
   *Rendering landed 2026-08-02.* `pdf/rasterize.ts` renders and `render.ts` parses; spec in
   `docs/page-rendering.md`. Verified on the first real book — *Gopalanand Swami ni Vato*, 442
@@ -635,10 +651,45 @@ Each mode is a self-contained exercise over a recital item.
 | 2026-08-02 | A page is rendered **as published**: no alpha, no annotations | An OCR engine wants ink on white, and a transparent background flattens to black. Annotations are skipped because a previous reader's highlight is an annotation, and it would end up in the scripture |
 | 2026-08-02 | The page manifest **pins its images to the source file by SHA-256** | These images are the source of truth for every verse OCR'd out of them, so the tie has to be to one exact file rather than to a name. A re-downloaded or swapped PDF hashes differently and cannot be silently OCR'd as the edition that was proofed |
 | 2026-08-02 | A render **resumes only when source hash, DPI, format and colour all agree** | Rendering is minutes of work and settings get tried more than once, so resuming matters — but half a book at 150 DPI mixed with half at 300 is worse than neither, and it would not be visible in a directory listing. Disagreement starts over; a *page range* still adds rather than replaces |
+| 2026-08-03 | **No second OCR engine — Sarvam stays, and the comparison is dropped** | It was chosen for its layout blocks, which no other candidate returns, so a bake-off could not have overturned it: the running head, the body and the footnote arriving already told apart is worth more here than a point of word accuracy. The diff's real value was as an *instrument* — disagreements between two engines localise likely errors without a ground-truth transcript — but that only speeds up P1.3, which every verse goes through regardless. A day of work and a second client to make a mandatory step faster is the wrong trade before the step exists. Known limit this leaves standing: `checkOrthography` catches every word Gujarati cannot spell and no word it can, so a correctly-spelled substitution reaches proofing unflagged. Reversible — the engine is behind one interface |
+| 2026-08-03 | **Normalization must be a no-op on clean text** — every repair fires only on something the writing system forbids or the typesetter demonstrably inserted | It is the only property that makes an unattended pass over 442 pages of scripture defensible. A pass that "improves" text is a pass that must be reviewed character by character; one that cannot fire on correct text needs reviewing only where it *did* fire. Checked directly: over the four real OCR'd pages it fires exactly six times, and every one is right |
+| 2026-08-03 | **A pre-base matra is only reordered where it has no base at all**, and it moves past the whole conjunct | Repairing only what `checkOrthography` already calls impossible is what keeps the rule from being a matter of taste. Moving it past the first consonant instead of the whole cluster would turn `િસ્થ` into `સિ્થ` — trading one impossibility for another, since a virama before a vowel sign is itself a violation |
+| 2026-08-03 | **An inline superscript digit is taken off the word it sits on**, and recorded | `આવરણ૧` is not a word; Gujarati spells nothing with a digit inside it, so the marker is the typesetter's and the word is the text's. Left alone it enters the verse hash, the search index and akshara segmentation. The rule needs a letter tight against the digit and at most two digits, which is what leaves `॥૬૧॥`, `(૧)` and `સંવત ૧૮૭૬` untouched |
+| 2026-08-03 | **A verse's printed number leaves its text and moves to the `number` field**, while the closing danda stays | How P0.2's own fixtures are written, and the consequence matters: the number would otherwise be inside the verse hash, so correcting a misread `૬૧` would change the hash and orphan every annotation, highlight and SRS item keyed to that passage. `number` is display only — the schema said so before there was anything to display |
+| 2026-08-03 | **A verse id is its printed number** (`v61`); a division id is positional (`section-1`) | The number is the edition's own identity for the passage: it survives re-extraction, re-OCR and a page-range rerun, and it is what a reader would cite. A section has no printed identity to borrow, so its id is provisional until the studio can transliterate its Gujarati title (P1.4) |
+| 2026-08-03 | The **verse-number sequence is the only checksum this stage has**, so every gap, repeat and jump is reported | A passage the OCR dropped entirely leaves no other trace — the text reads on, the page count is unchanged, orthography is clean. Only the numbering knows. Same argument for the printed-page offset, where the commonest value wins so one misread folio cannot move the book |
+| 2026-08-03 | **`book.json` and `assembly.json` are separate artefacts** | A package is a build artefact a reader installs; where a passage came from, what was repaired and how much to trust it is a record of how it was built. Merging them would put pixel coordinates into every reader's SQLite and make the package's hash depend on which pages happened to be assembled. They are joined by the verse ref, which is the only identifier either needs |
+| 2026-08-03 | **`assemble` does not attach footnotes to the words that pointed at them** | It has the evidence — each passage records its markers, each page its notes — but pairing them decides which gloss belongs to which word, and a wrong pairing corrupts meaning rather than text, which no orthography check or sequence checksum would ever catch. That is layer authoring, and P1.4 does it with a human watching |
+| 2026-08-03 | **Confidence is a table of fixed per-flag penalties**, not a formula | A fabricated number that cannot be argued with is worse than no number. As a table, a report's reader can see that a passage scored 0.65 because it had no printed number, and disagree. Its job is to *order* the proofing queue, not to decide anything |
+| 2026-08-03 | **A Gujarati book admits Devanagari as well as Gujarati**; Latin stays the tripwire | A Sanskrit shloka quoted mid-discourse is printed in Devanagari on a Gujarati page and it is scripture — the format has admitted that shape since P0.2's `sample-prose`. The single-script filter written for the English-description hazard would have quietly deleted every one of them. Latin still catches the hazard it was written for |
+| 2026-08-03 | The source edition, licence and title are written as **`unknown` and named in the report**, never guessed | Inventing a source edition is a small fiction in a project whose first principle is fidelity. The running heads are offered as *evidence* instead — with the folio stripped and non-Gujarati lines dropped, or `INDEX`, a button the PDF viewer draws, wins the tally and gets offered as the book's title |
 | 2026-08-01 | **Script detection lives in `packages/core`**, not in the pipeline | The studio needs the same question answered — a translation pasted into the transliteration slot is a `latn` run where `gujr` was declared — and it is platform-pure logic over the format's own `Script` union. The danda counts as script-neutral there for the same reason `punctuation.ts` treats it as shared |
 
 ## Changelog
 
+- **2026-08-03** — **P1.2's back half landed: the pages become a book.** `bun run assemble
+  <ocr-dir>` reads what `ocr` wrote and emits a draft P0.2 package plus an `assembly.json`
+  sidecar — the proofing queue P1.3 will work from, carrying each passage's pages, pixel boxes,
+  repairs and a confidence score, sorted worst-first. The structure comes off the pages
+  themselves rather than out of metadata: `॥૬૨॥` closes a passage and becomes its id,
+  `॥ … સમાપ્ત ॥` closes a work, a `section-title` block opens one, and a passage carries on
+  across a page break as a printed book does. The verse-number sequence is the only checksum
+  this stage has — a dropped passage leaves no other trace — so every gap, repeat and jump is
+  reported, as is any page whose printed folio disagrees with the prevailing offset.
+  Normalization (`normalizeScriptureText`, in core) folds the typesetting away under one rule:
+  **it must be a no-op on clean text**. Over the four real OCR'd pages it fires exactly six
+  times — one word closed up across an end-of-line hyphen, and the five footnote superscripts
+  that page 86's own note block defines — and nothing else moves. Those pages segment into
+  verses ૬૧–૬૬ with no gaps, both page-spanning passages rejoined, the section boundary found,
+  the 27-page folio offset recovered independently, and the package validating as a draft.
+  Also fixed: a Gujarati book now admits Devanagari, so a Sanskrit shloka quoted mid-discourse
+  is kept rather than set aside. Spec: `docs/assembly.md`.
+  Next: **P1.3, the proofing studio.** The remaining 438 pages are deliberately still not OCR'd:
+  the segmentation rules are tuned against four pages of one book's *body*, and front matter,
+  the table of contents and the other sections are better met in a studio that can show the page
+  image than in a terminal. Build P1.3 for a 442-page book anyway — the sample is 7 passages,
+  and virtualization, queue paging and jump-to-page are what a small draft will silently get
+  wrong.
 - **2026-08-02** — **P1.2 began: pages render.** `bun run render <pdf>` turns a book into the
   images it will be OCR'd and proofed from — 300 DPI greyscale PNG by default, `page-0001.png`
   zero-padded so a listing is in page order, and a `pages.json` manifest that pins the output
@@ -669,9 +720,9 @@ Each mode is a self-contained exercise over a recital item.
   decorative glyph the model wrote an English *description* of it, tagged `paragraph`,
   mid-page. Blocks in the wrong script and non-text tags are now set aside and recorded.
   Spec: `docs/ocr.md`.
-  Next: **P1.3, the proofing studio** — the remaining 438 pages are deliberately not OCR'd
-  until there is somewhere for the text to go, and a second engine over the same four pages is
-  what would settle the engine choice properly.
+  Next: **assembly** — the remaining 438 pages are deliberately not OCR'd until there is
+  somewhere for the text to go, and a second engine over the same four pages is what would
+  settle the engine choice properly.
 - **2026-08-01** — **P1.1's tool landed: PDF triage.** `bun run triage <path>` walks a folder
   of PDFs and decides, per file, whether its text layer can be trusted or whether the book has
   to be rendered and OCR'd — then writes the inventory as markdown and as JSON for P1.2.

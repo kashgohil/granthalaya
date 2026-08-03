@@ -43,6 +43,7 @@ bun run validate <path>  # check a book package against docs/book-format.md
 bun run triage <path>    # inventory a folder of PDFs, pick an extraction strategy per file
 bun run render <pdf>     # render a book's pages to images for OCR and proofing (resumable)
 bun run ocr <pages-dir>  # read those pages with Sarvam Vision (needs SARVAM_API_KEY; costs money)
+bun run assemble <ocr-dir>  # turn that text into a draft book package + proofing queue (free, re-runnable)
 bun run fonts:sync       # re-download the Gujarati font stack into both apps (output is committed)
 bun run design:sync      # regenerate the paper-grain tile + apps/web tokens.css from packages/core/src/design
 
@@ -124,7 +125,10 @@ next to the code as `*.test.ts`.
   `aksharaSpans` rather than restating either by hand. `checkTextStyle` enforces them.
 - **Scripture fidelity:** book content is published only after human proofing in the studio;
   never trust text extracted from Gujarati PDFs' embedded fonts — render pages to images and
-  OCR instead.
+  OCR instead. Text extracted from a page is normalized by `normalizeScriptureText`
+  (`packages/core/src/text/normalize.ts`), whose contract is that it is a **no-op on clean
+  text** and reports every repair it does make — don't add a transform there that "improves"
+  text, and don't hand-roll one elsewhere. Spec: `docs/assembly.md`.
 - **Design language:** never write a hex value or a font size in a component. Colour comes
   from `theme(name)` (four themes: White/Sepia/Dark/Black), size from
   `resolveTypeStyle(token, script)`, and spacing/radii/motion from `SPACING`/`RADIUS`/
