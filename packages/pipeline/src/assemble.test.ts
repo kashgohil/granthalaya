@@ -127,7 +127,8 @@ test("writes a package and a report that validate and agree", async () => {
 
 	const report = await Bun.file(join(out, ASSEMBLY_FILE)).json();
 	expect(report.counts.verses).toBe(2);
-	expect(report.sequence).toMatchObject({ first: 61, last: 62, missing: [], duplicates: [] });
+	expect(report.sequence).toMatchObject({ missing: [], duplicates: [], restarts: [] });
+	expect(report.sequence.runs[0]).toMatchObject({ first: 61, last: 62 });
 	expect(report.numbering.offset).toBe(27);
 });
 

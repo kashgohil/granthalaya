@@ -168,7 +168,13 @@ test("the overview recomputes what is true now, beside what the machine conclude
 		total: 4,
 		divisions: 2,
 	});
-	expect(overview.sequence).toMatchObject({ first: 61, last: 63, unnumbered: 1, missing: [] });
+	expect(overview.sequence).toMatchObject({
+		numbered: 3,
+		unnumbered: 1,
+		missing: [],
+		restarts: [],
+	});
+	expect(overview.sequence.runs[0]).toMatchObject({ first: 61, last: 63 });
 	expect(overview.needsHuman).toHaveLength(3);
 	// The import snapshot is kept beside it, for provenance rather than for display.
 	expect(overview.assembly.numbering.offset).toBe(27);

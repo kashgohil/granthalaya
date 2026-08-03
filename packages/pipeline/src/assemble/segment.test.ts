@@ -90,8 +90,8 @@ test("the verse-number sequence is checked for gaps and repeats", () => {
 	const result = segment([
 		page(1, [block("એક. ॥૧॥"), block("બે. ॥૨॥"), block("ચાર. ॥૪॥"), block("ચાર ફરી. ॥૪॥")]),
 	]);
-	expect(result.sequence.first).toBe(1);
-	expect(result.sequence.last).toBe(4);
+	expect(result.sequence.runs).toHaveLength(1);
+	expect(result.sequence.runs[0]).toMatchObject({ first: 1, last: 4 });
 	expect(result.sequence.missing).toEqual([3]);
 	expect(result.sequence.duplicates).toEqual([4]);
 	expect(result.sequence.outOfOrder).toEqual([4]);
@@ -100,14 +100,14 @@ test("the verse-number sequence is checked for gaps and repeats", () => {
 test("a clean sequence reports nothing", () => {
 	const result = segment([page(1, [block("એક. ॥૧॥"), block("બે. ॥૨॥"), block("ત્રણ. ॥૩॥")])]);
 	expect(result.sequence).toMatchObject({
-		first: 1,
-		last: 3,
 		numbered: 3,
 		unnumbered: 0,
 		missing: [],
 		duplicates: [],
 		outOfOrder: [],
+		restarts: [],
 	});
+	expect(result.sequence.runs[0]).toMatchObject({ first: 1, last: 3 });
 });
 
 test("a passage with no printed number is kept and flagged, never dropped", () => {
@@ -186,6 +186,131 @@ test("a Devanagari quotation stays in the discourse, set apart and flagged", () 
 	expect(verses[0]?.flags).toContain("contains-quotation");
 	// A blank line rather than a space, so the shloka is not run into the prose around it.
 	expect(verses[0]?.text).toContain("\nधर्मक्षेत्रे कुरुक्षेत्रे समवेता युयुत्सवः\n");
+});
+
+test("a headline opens a division, like any other heading tag", () => {
+	// The OCR uses `headline` for the openings this book sets most grandly — an illustration, a
+	// circled chapter number, the title in display type. Not knowing the tag cost eleven
+	// divisions: each title was welded onto the passage beneath it, and the four back-matter
+	// chapters ran together as one, each counting from ૧ so their ids collided.
+	const result = segment([
+		page(417, [
+			block("INDEX", "header"),
+			block("૨૫", "header"),
+			block("સત્સંગી હરિભક્ત આગળ વાત કરવાની રીત", "headline"),
+			block("શિક્ષાપત્રીમાં કહ્યા જે પરસ્ત્રીનો ત્યાગ. ॥૧॥"),
+		]),
+	]);
+	expect(result.sections).toHaveLength(1);
+	expect(result.sections[0]).toMatchObject({
+		title: "સત્સંગી હરિભક્ત આગળ વાત કરવાની રીત",
+		titleSource: "heading",
+	});
+	// And the title is out of the scripture, where it had been sitting inside the verse hash.
+	expect(result.sections[0]?.verses[0]?.text).not.toContain("સત્સંગી હરિભક્ત");
+});
+
+test("a quoted shloka tagged as a heading does not open a division", () => {
+	// Page 420 of the first real book: `ધ્યાનના શ્લોકો` is bilingual commentary, so the OCR tags
+	// each bold Devanagari shloka `section-title` on layout alone. Obeying that broke one
+	// division into a section per shloka, each titled with the shloka.
+	const result = segment([
+		page(420, [
+			block("INDEX\n\nધ્યાનના શ્લોકો ૩૯૩", "header"),
+			block("ध्याता ध्यानं तथा ध्येयं यच्च ध्यानप्रयोजनम् ॥३॥", "section-title"),
+			block("ધ્યાતા જે ધ્યાનનો કરનારો જીવાત્મા તથા ધ્યાન જે ભગવાનનું અખંડ ચિંતન. ॥૩॥"),
+		]),
+	]);
+	expect(result.sections).toHaveLength(1);
+	// Refused, not discarded — it stays in the passage as the quotation it is.
+	expect(result.sections[0]?.verses[0]?.text).toContain("ध्याता ध्यानं");
+	expect(result.sections[0]?.verses[0]?.flags).toContain("contains-quotation");
+});
+
+test("a quoted shloka's own number does not close the passage carrying it", () => {
+	// A Sanskrit shloka prints `॥१॥` in Devanagari. The terminator pattern admits every Indic
+	// digit, so the quotation was closing the discourse it sat inside and handing the second half
+	// the shloka's number as its identity — four passages of the first real book were built that
+	// way, `v1` and `v2` deep in a book numbered past 200.
+	const verses = allVerses([
+		page(1, [
+			block("સ્વામીએ વાત કરી જે, તેનું લક્ષણ જે –"),
+			block("प्रवृत्तिं च निवृतिं च कार्याकार्ये भयाभये ॥४॥"),
+			block("એમ સમજવું. ॥૨૨૭॥"),
+		]),
+	]);
+	expect(verses).toHaveLength(1);
+	expect(verses[0]?.number?.text).toBe("૨૨૭");
+	// Skipped, not stripped: the number belongs to the shloka and stays in its text.
+	expect(verses[0]?.text).toContain("॥४॥");
+});
+
+test("a rejected number does not swallow the danda the real one needs", () => {
+	// Page 153 flattens a shloka's footnote marker and the passage number into one run of
+	// dandas — `॥२॥૧૫૮॥` — where a single danda closes the first group and opens the second.
+	// Consuming the whole rejected match would take it, and ૧૫૮ would be reported missing.
+	const verses = allVerses([
+		page(153, [block("તે વિદુરનીતિમાં કહ્યું છે જે – यादृशैः सन्निविशते पुरुषः ॥२॥૧૫૮॥")]),
+	]);
+	expect(verses).toHaveLength(1);
+	expect(verses[0]?.number?.text).toBe("૧૫૮");
+	expect(verses[0]?.text).toContain("॥२॥");
+});
+
+test("a heading in the book's own script still opens a division", () => {
+	const result = segment([
+		page(1, [block("પહેલી વાત. ॥૧॥")]),
+		page(2, [block("મુક્તના ભેદની વાતો", "section-title"), block("બીજી વાત. ॥૨॥")]),
+	]);
+	expect(result.sections).toHaveLength(2);
+	expect(result.sections[1]).toMatchObject({
+		title: "મુક્તના ભેદની વાતો",
+		titleSource: "heading",
+	});
+});
+
+test("an untitled division takes the head printed across its own pages", () => {
+	// The edition sets the book's name on one side of the spread and the division's on the
+	// other, so the book's own name is excluded before tallying.
+	const result = segment([
+		page(1, [block("INDEX\n\nગોપાળાનંદસ્વામીની વાતો ૧", "header"), block("એક. ॥૧॥")]),
+		page(2, [block("INDEX\n\n૨ ધ્યાનના શ્લોકો", "header"), block("બે. ॥૨॥")]),
+		page(3, [block("INDEX\n\nગોપાળાનંદસ્વામીની વાતો ૩", "header"), block("ત્રણ. ॥૩॥")]),
+	]);
+	expect(result.sections).toHaveLength(1);
+	expect(result.sections[0]).toMatchObject({
+		title: "ધ્યાનના શ્લોકો",
+		titleSource: "running-head",
+	});
+});
+
+test("a tie between two running heads leaves the division untitled", () => {
+	// Two heads appearing equally often over one division is evidence it is really two, and a
+	// coin toss would put a title on a division nobody has agreed exists.
+	const book = "ગોપાળાનંદસ્વામીની વાતો";
+	const result = segment([
+		page(1, [block(`INDEX\n\n${book} ૧`, "header"), block("એક. ॥૧॥")]),
+		page(2, [block("INDEX\n\n૨ પહેલો ભાગ", "header"), block("બે. ॥૨॥")]),
+		page(3, [block(`INDEX\n\n${book} ૩`, "header"), block("ત્રણ. ॥૩॥")]),
+		page(4, [block("INDEX\n\n૪ બીજો ભાગ", "header"), block("ચાર. ॥૪॥")]),
+	]);
+	expect(result.sections).toHaveLength(1);
+	expect(result.sections[0]?.title).toBeNull();
+	expect(result.sections[0]?.titleSource).toBeNull();
+});
+
+test("a division that starts its numbering again is not a fault", () => {
+	// The appendix counts from 1 again. Flagging its first passage cost it 0.6 confidence and
+	// put it at the top of the proofing queue ahead of anything actually wrong.
+	const result = segment([
+		page(1, [block("એક. ॥૧॥"), block("બે. ॥૨॥")]),
+		page(2, [block("પરિશિષ્ટ", "section-title"), block("ફરી એક. ॥૧॥"), block("ફરી બે. ॥૨॥")]),
+	]);
+	const restarted = result.sections[1]?.verses[0];
+	expect(restarted?.flags).not.toContain("duplicate-number");
+	expect(restarted?.flags).not.toContain("out-of-sequence");
+	expect(result.sequence.runs).toHaveLength(2);
+	expect(result.sequence.restarts).toEqual([{ division: "section-2", at: 1 }]);
 });
 
 test("two blocks on one page are two printed paragraphs", () => {

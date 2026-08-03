@@ -112,13 +112,23 @@ export function draftReport(book: Book) {
 		},
 		numbering: { offset: 27, pagesWithPrintedNumber: 3, disagreements: [] },
 		sequence: {
-			first: 61,
-			last: 63,
+			runs: [
+				{
+					division: "section-1",
+					first: 61,
+					last: 63,
+					numbered: 3,
+					missing: [],
+					duplicates: [],
+					outOfOrder: [],
+				},
+			],
 			numbered: 3,
 			unnumbered: 1,
 			missing: [],
 			duplicates: [],
 			outOfOrder: [],
+			restarts: [],
 		},
 		counts: { sections: 2, verses: 4, numbered: 3, notes: 1, setAside: 2 },
 		needsHuman: [

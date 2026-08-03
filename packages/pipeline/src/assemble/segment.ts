@@ -20,6 +20,7 @@
  */
 import {
 	checkOrthography,
+	checkVerseSequence,
 	DIGIT_CLASS,
 	normalizeScriptureText,
 	type OrthographyReport,
@@ -27,6 +28,7 @@ import {
 	parseIndicNumber,
 	profileScript,
 	type Script,
+	type SequenceReport,
 	type TextRepair,
 	type VerseForm,
 } from "@granthalaya/core";
@@ -113,21 +115,15 @@ export type SegmentedSection = {
 	/** As printed. Null for text that appeared before the book's first heading. */
 	readonly title: string | null;
 	readonly titleBlock: BlockRef | null;
+	/**
+	 * Where the title came from. `heading` is a block the edition set as one; `running-head` is
+	 * recovered from the head printed across the section's own pages, which is weaker evidence
+	 * and is marked so the studio can say so.
+	 */
+	readonly titleSource: "heading" | "running-head" | null;
 	/** The printed line that closed it, e.g. `॥ પુરુષોત્તમપણાની વાતો સમાપ્ત ॥`. */
 	readonly endMarker: string | null;
 	readonly verses: readonly SegmentedVerse[];
-};
-
-export type SequenceReport = {
-	readonly first: number | null;
-	readonly last: number | null;
-	readonly numbered: number;
-	readonly unnumbered: number;
-	/** Numbers absent from the run between `first` and `last`. */
-	readonly missing: readonly number[];
-	readonly duplicates: readonly number[];
-	/** Numbers that did not follow the one before them. */
-	readonly outOfOrder: readonly number[];
 };
 
 export type PageNumbering = {
@@ -168,12 +164,22 @@ export type SegmentOptions = {
 	readonly shortVerseChars?: number;
 };
 
-/** Layout tags that open a new division. */
+/**
+ * Layout tags that open a new division.
+ *
+ * `headline` is here because the OCR uses it for exactly the openings this book sets most
+ * grandly — an illustration, a circled chapter number, the title in display type. Leaving it out
+ * cost eleven divisions, welded each of those titles onto the first passage beneath it, and left
+ * four chapters of the back matter running together as one, each counting its passages from ૧ so
+ * their ids collided. Which of `section-title` and `headline` the OCR picks is not something a
+ * page can be read to predict, so both open a division and the script guard below decides.
+ */
 const HEADING_TAGS = new Set([
 	"section-title",
 	"section-header",
 	"chapter-title",
 	"title",
+	"headline",
 	"heading",
 	"subtitle",
 ]);
@@ -202,6 +208,29 @@ export function isSectionEndMarker(text: string): boolean {
 		return false;
 	}
 	return COMPLETION_WORDS.some((word) => trimmed.includes(word));
+}
+
+/**
+ * The running heads a header block carries, as heads rather than as lines.
+ *
+ * The folio sits in the same block and changes on every page, so it is dropped: `૫૬
+ * ગોપાળાનંદસ્વામીની વાતો` and `મુક્તના ભેદની વાતો ૫૯` are two sightings of two heads, not two
+ * sightings of two hundred. Only heads in the book's own script count — the first real book's
+ * headers each carry the word `INDEX`, which is a button the PDF viewer draws rather than
+ * anything the edition printed.
+ */
+export function runningHeadLines(text: string, script: Script): string[] {
+	const heads: string[] = [];
+	for (const line of text.split("\n")) {
+		const head = line
+			.replace(new RegExp(`(?<![${DIGIT_CLASS}])[${DIGIT_CLASS}]+(?![${DIGIT_CLASS}])`, "gu"), " ")
+			.replace(/\s+/g, " ")
+			.trim();
+		if (head !== "" && profileScript(head).dominant === script) {
+			heads.push(head);
+		}
+	}
+	return heads;
 }
 
 /** The printed page number, read off whichever block carries it. */
@@ -288,6 +317,7 @@ export function segmentBook(pages: readonly PageBlocks[], options: SegmentOption
 	const notes: PageNote[] = [];
 	const setAside: SetAsideBlock[] = [];
 	const folios: { page: number; printed: number | null }[] = [];
+	const headsByPage = new Map<number, string[]>();
 
 	let currentTitle: string | null = null;
 	let currentTitleBlock: BlockRef | null = null;
@@ -295,8 +325,9 @@ export function segmentBook(pages: readonly PageBlocks[], options: SegmentOption
 	let pending: Fragment[] = [];
 
 	const seenNumbers = new Set<number>();
-	const orderedNumbers: number[] = [];
 	let previousNumber: number | null = null;
+	/** True until the division that just opened has produced its first numbered passage. */
+	let sectionStart = true;
 
 	/** Turn the accumulated fragments into a passage. Returns null when there is nothing to close. */
 	const closeVerse = (number: ParsedNumber | null): SegmentedVerse | null => {
@@ -347,6 +378,16 @@ export function segmentBook(pages: readonly PageBlocks[], options: SegmentOption
 		if (number === null) {
 			flags.push("no-number");
 		} else {
+			// A division may start the numbering over — an appendix that counts from 1 again is
+			// the edition's doing, not a fault — so the run resets instead of the passage being
+			// flagged. Without this the first passage of every restart carried `duplicate-number`
+			// and `out-of-sequence`, lost 0.6 of its confidence, and sat at the top of the
+			// proofing queue ahead of passages with something actually wrong with them. Inside a
+			// division the same jump *is* a fault; `checkVerseSequence` draws the line identically.
+			if (sectionStart && previousNumber !== null && number.value <= previousNumber) {
+				seenNumbers.clear();
+				previousNumber = null;
+			}
 			if (seenNumbers.has(number.value)) {
 				flags.push("duplicate-number");
 			}
@@ -354,8 +395,8 @@ export function segmentBook(pages: readonly PageBlocks[], options: SegmentOption
 				flags.push("out-of-sequence");
 			}
 			seenNumbers.add(number.value);
-			orderedNumbers.push(number.value);
 			previousNumber = number.value;
+			sectionStart = false;
 		}
 		if (!orthography.ok) {
 			flags.push("orthography");
@@ -405,17 +446,25 @@ export function segmentBook(pages: readonly PageBlocks[], options: SegmentOption
 		sections.push({
 			title: currentTitle,
 			titleBlock: currentTitleBlock,
+			titleSource: currentTitle === null ? null : "heading",
 			endMarker,
 			verses: currentVerses,
 		});
 		currentTitle = null;
 		currentTitleBlock = null;
 		currentVerses = [];
+		sectionStart = true;
 	};
 
 	for (const page of pages) {
 		const printed = printedPageNumber(page.blocks, script);
 		folios.push({ page: page.number, printed });
+		headsByPage.set(
+			page.number,
+			page.blocks
+				.filter((block) => block.tag === "header")
+				.flatMap((block) => runningHeadLines(block.text, script)),
+		);
 
 		const { body, notes: pageNotes, setAside: aside } = partitionBlocks(page.blocks, admitted);
 
@@ -438,8 +487,18 @@ export function segmentBook(pages: readonly PageBlocks[], options: SegmentOption
 
 		for (const block of body) {
 			const ref = refOf(block, page.number, printed);
+			const profile = profileScript(block.text);
+			const quotation = profile.dominant !== null && profile.dominant !== script;
 
-			if (HEADING_TAGS.has(block.tag)) {
+			// A heading must be in the book's own script. The OCR tags a bold, centred line
+			// `section-title` on layout alone, and in a bilingual commentary that line is the
+			// quoted Devanagari shloka rather than a heading. Nine of this book's forty
+			// `section-title` blocks are Devanagari, and obeying the tag broke one division —
+			// `ધ્યાનના શ્લોકો` — into a section per shloka, each titled with the shloka it opened
+			// on. Admitting Devanagari for body text, which scripture requires, must not admit it
+			// for structure. Nothing is lost by refusing: the block falls through and stays in the
+			// passage as the quotation it is.
+			if (HEADING_TAGS.has(block.tag) && !quotation) {
 				// A heading closes whatever came before it, even mid-passage: the passage was
 				// unterminated, which is exactly the kind of thing proofing needs to see.
 				closeSection(null);
@@ -453,9 +512,6 @@ export function segmentBook(pages: readonly PageBlocks[], options: SegmentOption
 				continue;
 			}
 
-			const profile = profileScript(block.text);
-			const quotation = profile.dominant !== null && profile.dominant !== script;
-
 			// One block can hold more than one passage, so split on every printed number rather
 			// than assuming a block ends at most one.
 			VERSE_TERMINATOR.lastIndex = 0;
@@ -464,6 +520,25 @@ export function segmentBook(pages: readonly PageBlocks[], options: SegmentOption
 				const match = VERSE_TERMINATOR.exec(block.text);
 				if (match === null) {
 					break;
+				}
+				// The closing number has to be in the book's own script. A Sanskrit shloka quoted
+				// mid-discourse prints its own `॥१॥` in Devanagari, and the terminator pattern
+				// admits every Indic digit — so the quotation was closing the passage that carried
+				// it, cutting the discourse in two and handing the second half the shloka's number
+				// as its identity. Four passages of the first real book were built that way.
+				// Skipping leaves the number where it belongs: inside the quotation's text.
+				const number = parseIndicNumber(match[1] as string);
+				if (number === null || number.script !== script) {
+					// Resume one character in rather than past the whole match, because two of these
+					// groups can share a danda. Page 153 flattens a shloka's footnote marker and
+					// the passage number into `॥२॥१५८॥`, where one danda closes the first and opens
+					// the second — so consuming the whole rejected match would take the danda the
+					// real number needs. (On that page the OCR read *both* as Devanagari, so both
+					// are refused and ૧૫૮ is reported missing, which is the OCR error a human is
+					// meant to be sent to page 153 for. The backup is what makes the mixed case,
+					// where only the marker is misread, come out right.)
+					VERSE_TERMINATOR.lastIndex = match.index + 1;
+					continue;
 				}
 				// The danda stays with the text and the number does not, which is how P0.2's own
 				// fixtures are written: `ધિયો યો નઃ પ્રચોદયાત્ ॥` with `number: "૪"` beside it.
@@ -475,7 +550,7 @@ export function segmentBook(pages: readonly PageBlocks[], options: SegmentOption
 				if (before.trim() !== "" || pending.length > 0) {
 					pending.push({ text: `${before}${opening}`.trim(), ref, quotation });
 				}
-				pushVerse(parseIndicNumber(match[1] as string));
+				pushVerse(number);
 				cursor = match.index + match[0].length;
 			}
 
@@ -488,70 +563,76 @@ export function segmentBook(pages: readonly PageBlocks[], options: SegmentOption
 
 	closeSection(null);
 
+	const titled = titleFromRunningHeads(sections, headsByPage);
+
 	return {
-		sections,
-		sequence: readSequence(orderedNumbers, sections),
+		sections: titled,
+		// Keyed by the id `package.ts` will give the division, so the studio's live recomputation
+		// and this snapshot name the same things.
+		sequence: checkVerseSequence(
+			titled.map((section, index) => ({
+				id: `section-${index + 1}`,
+				numbers: section.verses.map((verse) => verse.number?.value ?? null),
+			})),
+		),
 		numbering: readNumbering(folios),
 		notes,
 		setAside,
 	};
 }
 
-/** Check the printed numbering for the gaps and repeats that mean a passage was lost. */
-function readSequence(
-	ordered: readonly number[],
+/**
+ * Give an untitled division the title printed across its own pages.
+ *
+ * A division only reaches here untitled when the edition gave the OCR nothing to tag — text
+ * before the first heading, or a heading refused for being a quotation. The head is still
+ * printed on every page of it, so the title is on the page rather than inferred: this book sets
+ * the book's name on one side of the spread and the division's on the other, which is ordinary
+ * for a printed book and is why the book's own name has to be excluded before tallying.
+ *
+ * A tie leaves the division untitled. Two heads appearing equally often over one division is
+ * evidence that it is really two, and answering that with a coin toss would put a title on a
+ * division a human has not yet agreed exists.
+ */
+function titleFromRunningHeads(
 	sections: readonly SegmentedSection[],
-): SequenceReport {
-	const unnumbered = sections.reduce(
-		(total, section) => total + section.verses.filter((verse) => verse.number === null).length,
-		0,
-	);
-	if (ordered.length === 0) {
-		return {
-			first: null,
-			last: null,
-			numbered: 0,
-			unnumbered,
-			missing: [],
-			duplicates: [],
-			outOfOrder: [],
-		};
-	}
-
-	const seen = new Set<number>();
-	const duplicates = new Set<number>();
-	for (const value of ordered) {
-		if (seen.has(value)) {
-			duplicates.add(value);
+	headsByPage: ReadonlyMap<number, readonly string[]>,
+): SegmentedSection[] {
+	const bookWide = new Map<string, number>();
+	for (const heads of headsByPage.values()) {
+		for (const head of heads) {
+			bookWide.set(head, (bookWide.get(head) ?? 0) + 1);
 		}
-		seen.add(value);
 	}
-
-	// Deduplicated: a number that repeats is reported once here and again under `duplicates`,
-	// and listing it twice in the same line reads as two separate faults.
-	const outOfOrder = new Set<number>();
-	for (let index = 1; index < ordered.length; index += 1) {
-		if ((ordered[index] as number) !== (ordered[index - 1] as number) + 1) {
-			outOfOrder.add(ordered[index] as number);
+	let bookTitle: string | null = null;
+	let most = 0;
+	for (const [head, count] of bookWide) {
+		if (count > most) {
+			bookTitle = head;
+			most = count;
 		}
 	}
 
-	const first = Math.min(...ordered);
-	const last = Math.max(...ordered);
-	const missing: number[] = [];
-	for (let value = first; value <= last; value += 1) {
-		if (!seen.has(value)) {
-			missing.push(value);
+	return sections.map((section) => {
+		if (section.title !== null) {
+			return section;
 		}
-	}
-
-	return {
-		first,
-		last,
-		numbered: ordered.length,
-		unnumbered,
-		missing,
-		duplicates: [...duplicates],
-		outOfOrder: [...outOfOrder],
-	};
+		const tally = new Map<string, number>();
+		for (const verse of section.verses) {
+			for (const page of verse.pages) {
+				for (const head of headsByPage.get(page) ?? []) {
+					if (head !== bookTitle) {
+						tally.set(head, (tally.get(head) ?? 0) + 1);
+					}
+				}
+			}
+		}
+		const ranked = [...tally].sort((a, b) => b[1] - a[1]);
+		const winner = ranked[0];
+		const runnerUp = ranked[1];
+		if (winner === undefined || (runnerUp !== undefined && runnerUp[1] === winner[1])) {
+			return section;
+		}
+		return { ...section, title: winner[0], titleSource: "running-head" };
+	});
 }

@@ -30,6 +30,7 @@ import {
 	type LocalizedText,
 	profileScript,
 	type Script,
+	type SequenceReport,
 	type SourceEdition,
 } from "@granthalaya/core";
 import type { OcrManifest } from "../ocr.ts";
@@ -39,7 +40,6 @@ import type {
 	PageNumbering,
 	SegmentedBook,
 	SegmentedVerse,
-	SequenceReport,
 	SetAsideBlock,
 	VerseFlag,
 } from "./segment.ts";

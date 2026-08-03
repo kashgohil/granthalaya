@@ -170,13 +170,11 @@ test("a passage the OCR missed can be typed in, and the checksum closes", async 
 	// The fixture runs ૬૧, ૬૨, ૬૩ — pretend the OCR dropped ૬૪ entirely, which is the failure
 	// that leaves no other trace.
 	const numbers = async () =>
-		(
-			await db
-				.select({ number: verses.number })
-				.from(verses)
-				.where(eq(verses.bookId, FIXTURE_BOOK_ID))
-				.orderBy(asc(verses.divisionId), asc(verses.ordinal))
-		).map((row) => row.number);
+		await db
+			.select({ divisionId: verses.divisionId, number: verses.number })
+			.from(verses)
+			.where(eq(verses.bookId, FIXTURE_BOOK_ID))
+			.orderBy(asc(verses.divisionId), asc(verses.ordinal));
 
 	await renumberVerse(db, FIXTURE_BOOK_ID, "section-2", "p86-6", "૬૫");
 	expect(checkSequence(await numbers()).missing).toEqual([64]);

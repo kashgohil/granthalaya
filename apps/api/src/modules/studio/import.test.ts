@@ -237,20 +237,38 @@ test("a draft with no rendered pages imports, and says what is missing", async (
 	await teardown();
 });
 
+/** One division's worth of rows, which is the shape the checksum reads. */
+const inOneDivision = (numbers: (string | null)[]) =>
+	numbers.map((number) => ({ divisionId: "section-1", number }));
+
 test("the live sequence check finds gaps, repeats and jumps", () => {
-	expect(checkSequence(["૬૧", "૬૨", "૬૩", null])).toMatchObject({
-		first: 61,
-		last: 63,
+	expect(checkSequence(inOneDivision(["૬૧", "૬૨", "૬૩", null]))).toMatchObject({
 		numbered: 3,
 		unnumbered: 1,
 		missing: [],
 		duplicates: [],
 		outOfOrder: [],
+		restarts: [],
 	});
 	// The failure this exists for: a passage the OCR dropped leaves no other trace.
-	expect(checkSequence(["૬૧", "૬૩"]).missing).toEqual([62]);
-	expect(checkSequence(["૬૧", "૬૧"]).duplicates).toEqual([61]);
-	expect(checkSequence(["૬૩", "૬૧"]).outOfOrder).toEqual([61]);
+	expect(checkSequence(inOneDivision(["૬૧", "૬૩"])).missing).toEqual([62]);
+	expect(checkSequence(inOneDivision(["૬૧", "૬૧"])).duplicates).toEqual([61]);
+	expect(checkSequence(inOneDivision(["૬૩", "૬૧"])).outOfOrder).toEqual([61]);
+});
+
+test("the live check reads the studio's rows the same way assemble read the pages", () => {
+	// Both sides call `checkVerseSequence`, so a division that starts counting again is a run
+	// boundary here too — not thirteen duplicates the human has to explain away.
+	const rows = [
+		{ divisionId: "section-1", number: "૧" },
+		{ divisionId: "section-1", number: "૨" },
+		{ divisionId: "section-2", number: "૧" },
+	];
+	expect(checkSequence(rows)).toMatchObject({
+		duplicates: [],
+		outOfOrder: [],
+		restarts: [{ division: "section-2", at: 1 }],
+	});
 });
 
 test("a footnote's own marker is read off its text", () => {

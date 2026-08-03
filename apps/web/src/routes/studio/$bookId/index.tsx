@@ -14,13 +14,23 @@ import { cn } from "#/lib/utils";
 export const Route = createFileRoute("/studio/$bookId/")({ component: BookOverview });
 
 type Sequence = {
-	first: number | null;
-	last: number | null;
-	numbered: number;
-	unnumbered: number;
-	missing: number[];
-	duplicates: number[];
-	outOfOrder: number[];
+	/**
+	 * One stretch the edition counted continuously over. A book with an appendix that starts at 1
+	 * again has two, and reading them as one sequence would report the appendix as a pile of
+	 * duplicates rather than as a book.
+	 */
+	readonly runs: readonly {
+		readonly division: string;
+		readonly first: number;
+		readonly last: number;
+		readonly numbered: number;
+	}[];
+	readonly numbered: number;
+	readonly unnumbered: number;
+	readonly missing: readonly number[];
+	readonly duplicates: readonly number[];
+	readonly outOfOrder: readonly number[];
+	readonly restarts: readonly { readonly division: string; readonly at: number }[];
 };
 
 /**
@@ -250,7 +260,7 @@ function BookOverview() {
 }
 
 function SequenceReport({ sequence }: { sequence: Sequence }) {
-	const problems: [string, number[]][] = [
+	const problems: [string, readonly number[]][] = [
 		["missing", sequence.missing],
 		["repeated", sequence.duplicates],
 		["out of order", sequence.outOfOrder],
@@ -259,9 +269,18 @@ function SequenceReport({ sequence }: { sequence: Sequence }) {
 	return (
 		<div className="text-sm">
 			<p>
-				{sequence.first ?? "—"}–{sequence.last ?? "—"} · {sequence.numbered} numbered ·{" "}
-				{sequence.unnumbered} with no printed number
+				{sequence.runs.length === 0
+					? "—"
+					: sequence.runs.map((run) => `${run.first}\u2013${run.last}`).join(", then ")}{" "}
+				· {sequence.numbered} numbered · {sequence.unnumbered} with no printed number
 			</p>
+			{sequence.restarts.length > 0 ? (
+				<p className="mt-1 text-ink-muted">
+					Numbering starts again{" "}
+					{sequence.restarts.length === 1 ? "once" : `${sequence.restarts.length} times`}. Each
+					restart is the edition's own, unless a number was misread.
+				</p>
+			) : null}
 			{problems.every(([, values]) => values.length === 0) ? (
 				<p className="mt-1 text-ink-muted">No gaps, repeats or jumps.</p>
 			) : (

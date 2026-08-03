@@ -288,8 +288,18 @@ export async function runAssemble(args: readonly string[]): Promise<AssembleOutc
 		);
 	}
 
-	if (sequence.first !== null) {
-		lines.push(`  numbering runs ${sequence.first}–${sequence.last}`);
+	// One line per run. A book that counts straight through prints one; one with an appendix that
+	// starts over prints two, which is the fact a single range would have hidden.
+	for (const run of sequence.runs) {
+		lines.push(
+			`  numbering runs ${run.first}–${run.last}` +
+				(sequence.runs.length > 1 ? ` (from ${run.division})` : ""),
+		);
+	}
+	if (sequence.restarts.length > 0) {
+		lines.push(
+			`  numbering starts again at: ${sequence.restarts.map((restart) => `${restart.at} in ${restart.division}`).join(", ")}`,
+		);
 	}
 	if (sequence.missing.length > 0) {
 		lines.push(`  MISSING numbers: ${sequence.missing.slice(0, 20).join(", ")}`);

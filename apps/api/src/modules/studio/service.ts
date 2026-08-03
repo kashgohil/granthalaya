@@ -12,62 +12,44 @@
  * - **What only a human can supply.** `assemble` writes `unknown` into the source edition and the
  *   licence and names them; once somebody fills them in, the list has to shrink.
  */
-import { parseIndicNumber } from "@granthalaya/core";
+import { checkVerseSequence, parseIndicNumber, type SequenceReport } from "@granthalaya/core";
 import type { Db, VerseStatus } from "@granthalaya/db";
 import { books, divisions, pageNotes, pages, setAsideBlocks, verses } from "@granthalaya/db";
 import { and, asc, count, eq } from "drizzle-orm";
 
 export type StatusCounts = Record<VerseStatus, number> & { total: number };
 
-export type SequenceCheck = {
-	readonly first: number | null;
-	readonly last: number | null;
-	readonly numbered: number;
-	readonly unnumbered: number;
-	readonly missing: number[];
-	readonly duplicates: number[];
-	readonly outOfOrder: number[];
-};
+export type SequenceCheck = SequenceReport;
 
 /**
- * The checksum, over printed numbers in reading order.
+ * The checksum, over printed numbers in reading order and grouped by division.
+ *
+ * The rule itself is `checkVerseSequence` in `packages/core` — deliberately not a second
+ * implementation. `assemble` computes this at import and the studio recomputes it from the live
+ * rows, and the overview shows the two side by side; if they could drift, a disagreement would
+ * be indistinguishable from the human's own work.
+ *
+ * Grouping matters: a division may restart the numbering, and only a division boundary is
+ * allowed to. Passing one flat list would read an appendix that counts from 1 again as a pile of
+ * duplicates.
  *
  * `null` for a passage that printed no number — those are counted, not treated as a gap, because
  * an unnumbered passage is a known shape in this edition rather than evidence of a loss.
  */
-export function checkSequence(numbers: readonly (string | null)[]): SequenceCheck {
-	const values: number[] = [];
-	let unnumbered = 0;
-	for (const text of numbers) {
-		const parsed = text === null ? null : parseIndicNumber(text);
-		if (parsed === null) {
-			unnumbered += 1;
-			continue;
+export function checkSequence(
+	rows: readonly { readonly divisionId: string; readonly number: string | null }[],
+): SequenceCheck {
+	const byDivision: { id: string; numbers: (number | null)[] }[] = [];
+	for (const row of rows) {
+		let current = byDivision[byDivision.length - 1];
+		if (current === undefined || current.id !== row.divisionId) {
+			current = { id: row.divisionId, numbers: [] };
+			byDivision.push(current);
 		}
-		values.push(parsed.value);
+		const parsed = row.number === null ? null : parseIndicNumber(row.number);
+		current.numbers.push(parsed?.value ?? null);
 	}
-
-	const seen = new Set<number>();
-	const duplicates: number[] = [];
-	const outOfOrder: number[] = [];
-	let previous: number | null = null;
-	for (const value of values) {
-		if (seen.has(value)) duplicates.push(value);
-		seen.add(value);
-		if (previous !== null && value !== previous + 1) outOfOrder.push(value);
-		previous = value;
-	}
-
-	const first = values.length === 0 ? null : Math.min(...values);
-	const last = values.length === 0 ? null : Math.max(...values);
-	const missing: number[] = [];
-	if (first !== null && last !== null) {
-		for (let value = first; value <= last; value += 1) {
-			if (!seen.has(value)) missing.push(value);
-		}
-	}
-
-	return { first, last, numbered: values.length, unnumbered, missing, duplicates, outOfOrder };
+	return checkVerseSequence(byDivision);
 }
 
 /** The three fields `assemble` cannot know, checked against what is in the manifest now. */
@@ -151,15 +133,23 @@ export async function getBookOverview(db: Db, bookId: string) {
 				.from(divisions)
 				.where(eq(divisions.bookId, bookId))
 				.orderBy(asc(divisions.ordinal)),
+			// Ordered by the division's *ordinal*, not its id: ids are text, so `section-10` sorts
+			// before `section-2` and the book comes back shuffled. The checksum reads the numbers
+			// in reading order, so a wrong order is a wrong checksum.
 			db
 				.select({
 					divisionId: verses.divisionId,
+					divisionOrdinal: divisions.ordinal,
 					number: verses.number,
 					orphaned: verses.orphaned,
 				})
 				.from(verses)
+				.innerJoin(
+					divisions,
+					and(eq(divisions.bookId, verses.bookId), eq(divisions.id, verses.divisionId)),
+				)
 				.where(eq(verses.bookId, bookId))
-				.orderBy(asc(verses.divisionId), asc(verses.ordinal)),
+				.orderBy(asc(divisions.ordinal), asc(verses.ordinal)),
 			statusCounts(db, bookId),
 			db.select({ n: count() }).from(pageNotes).where(eq(pageNotes.bookId, bookId)),
 			db.select({ n: count() }).from(setAsideBlocks).where(eq(setAsideBlocks.bookId, bookId)),
@@ -185,7 +175,7 @@ export async function getBookOverview(db: Db, bookId: string) {
 		/** What the machine concluded at import — a snapshot, kept for provenance. */
 		assembly: book.assembly,
 		/** What is true now. These two disagreeing is the studio doing its job. */
-		sequence: checkSequence(live.map((row) => row.number)),
+		sequence: checkSequence(live),
 		needsHuman: stillNeedsHuman(book.manifest),
 		counts: {
 			...counts,

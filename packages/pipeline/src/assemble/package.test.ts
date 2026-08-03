@@ -159,11 +159,11 @@ test("footnotes and set-aside blocks reach the report rather than the package", 
 /**
  * The failure the first full run found.
  *
- * 442 pages produced an *invalid* package: the index at the back restarts its numbering three
- * times on one spread, and a quoted shloka's own `॥२॥` reads as a passage number — so one
- * section ended up with several children called `v1`, which the format forbids.
+ * 442 pages produced an *invalid* package: the index at the back restarts its numbering more than
+ * once inside one division, so a section ended up with several children called `v1`, which the
+ * format forbids.
  *
- * Deciding which of them is really `૨` is a human's job, and the studio is where it happens.
+ * Deciding which of them is really `૧` is a human's job, and the studio is where it happens.
  * Emitting a package nobody can open is not.
  */
 test("two passages printing the same number still make a valid package", () => {
@@ -173,8 +173,7 @@ test("two passages printing the same number still make a valid package", () => {
 			block("બીજી. ॥૨॥"),
 			// The index restarts, exactly as pages 414–419 of the real book do.
 			block("ફરીથી પહેલી. ॥૧॥"),
-			// And a Devanagari `२` from a quoted shloka parses to the same 2.
-			block("શ્લોકનો ક્રમાંક. ॥२॥"),
+			block("ફરીથી બીજી. ॥૨॥"),
 		]),
 	]);
 
@@ -183,7 +182,7 @@ test("two passages printing the same number still make a valid package", () => {
 	const ids = bookVerses(book).map((visit) => visit.unit.id);
 	expect(ids).toEqual(["v1", "v2", "v1-2", "v2-2"]);
 	// The suffix is an id, not a correction: each passage still carries what the page printed.
-	expect(bookVerses(book).map((visit) => visit.unit.number)).toEqual(["૧", "૨", "૧", "२"]);
+	expect(bookVerses(book).map((visit) => visit.unit.number)).toEqual(["૧", "૨", "૧", "૨"]);
 	// And the collision is already flagged, so it sorts into the proofing queue to be settled.
 	expect(report.verses.some((verse) => verse.flags.includes("duplicate-number"))).toBe(true);
 });

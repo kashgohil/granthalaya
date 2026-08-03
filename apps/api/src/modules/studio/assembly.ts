@@ -58,14 +58,24 @@ export const PageNoteSchema = z.object({
 
 export const SetAsideSchema = BlockRefSchema.extend({ text: z.string() });
 
+export const SequenceRunSchema = z.object({
+	division: z.string().min(1),
+	first: z.number().int(),
+	last: z.number().int(),
+	numbered: z.number().int().nonnegative(),
+	missing: z.array(z.number().int()),
+	duplicates: z.array(z.number().int()),
+	outOfOrder: z.array(z.number().int()),
+});
+
 export const SequenceReportSchema = z.object({
-	first: z.number().int().nullable(),
-	last: z.number().int().nullable(),
+	runs: z.array(SequenceRunSchema),
 	numbered: z.number().int().nonnegative(),
 	unnumbered: z.number().int().nonnegative(),
 	missing: z.array(z.number().int()),
 	duplicates: z.array(z.number().int()),
 	outOfOrder: z.array(z.number().int()),
+	restarts: z.array(z.object({ division: z.string().min(1), at: z.number().int() })),
 });
 
 export const PageNumberingSchema = z.object({
