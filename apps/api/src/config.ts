@@ -1,9 +1,9 @@
 /**
  * Runtime configuration. Bun auto-loads `.env`, so no dotenv here.
  *
- * Defaults are development defaults: the API sits on :3001 so it does not collide
- * with the web dev server (:3000); allowed origins cover the Vite dev server and
- * Expo's dev server / web preview.
+ * Defaults are development defaults: the API sits on :4567 and the web dev server on
+ * :4568, out of the way of the 3000/8080 range every other local project competes for;
+ * allowed origins cover the Vite dev server and Expo's dev server / web preview.
  *
  * The admin studio's two secrets have **no defaults on purpose**. A default password is a
  * published password, and the studio is the one surface that can move scripture from `draft`
@@ -13,8 +13,8 @@ import { dirname, isAbsolute, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { databaseUrl } from "@granthalaya/db";
 
-const DEFAULT_PORT = 3001;
-const DEFAULT_ORIGINS = ["http://localhost:3000", "http://localhost:8081"];
+const DEFAULT_PORT = 4567;
+const DEFAULT_ORIGINS = ["http://localhost:4568", "http://localhost:8081"];
 /** A week. Long enough that proofing a book is not interrupted by a login. */
 const DEFAULT_SESSION_TTL_SECONDS = 60 * 60 * 24 * 7;
 
@@ -94,7 +94,7 @@ export const config = {
 	/**
 	 * Cookies go `Secure` in production, where the studio and the API may be different origins.
 	 * In development they are same-*site* — a port is not part of a site — so an unsecured `Lax`
-	 * cookie crosses :3000 → :3001 fine, and `Secure` would stop it being set over plain http.
+	 * cookie crosses :4568 → :4567 fine, and `Secure` would stop it being set over plain http.
 	 */
 	secureCookies: process.env.NODE_ENV === "production",
 } as const;

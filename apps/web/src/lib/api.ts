@@ -7,11 +7,11 @@ import type { App } from "@granthalaya/api";
  *
  * Set `VITE_API_URL` to point at a deployed API; the default is the local dev server.
  */
-export const API_URL: string = import.meta.env.VITE_API_URL ?? "http://localhost:3001";
+export const API_URL: string = import.meta.env.VITE_API_URL ?? "http://localhost:4567";
 
 /**
  * `credentials: "include"` is what carries the admin studio's session cookie. The studio and the
- * API are different *origins* (:3000 and :3001) even in development, and a cross-origin request
+ * API are different *origins* (:4568 and :4567) even in development, and a cross-origin request
  * sends no cookie unless both sides opt in — this, and `credentials: true` on the API's CORS.
  *
  * Page images need the same opt-in and cannot get it from here, because a browser fetches an

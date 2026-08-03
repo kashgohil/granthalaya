@@ -8,7 +8,7 @@ rather than runtime 404s.
 ## Commands
 
 ```sh
-bun run dev        # watch mode on :3001
+bun run dev        # watch mode on :4567
 bun run start      # run once
 bun run test       # bun test
 bun run typecheck  # tsc --noEmit
@@ -22,8 +22,8 @@ Bun auto-loads `.env` — do not add dotenv.
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `API_PORT` | `3001` | Port to bind (3000 is the web dev server) |
-| `API_CORS_ORIGINS` | `http://localhost:3000,http://localhost:8081` | Comma-separated allowed origins |
+| `API_PORT` | `4567` | Port to bind (4568 is the web dev server) |
+| `API_CORS_ORIGINS` | `http://localhost:4568,http://localhost:8081` | Comma-separated allowed origins |
 
 ## Layout
 

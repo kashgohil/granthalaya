@@ -38,7 +38,7 @@ function StudioShell() {
 			<Frame>
 				<Notice title="The API is not answering.">
 					<p>
-						The studio talks to <code>apps/api</code> on :3001. Start it with{" "}
+						The studio talks to <code>apps/api</code> on :4567. Start it with{" "}
 						<code>bun run dev</code> from the repo root, or <code>bun run dev:api</code> on its own.
 					</p>
 					<p className="mt-2 text-sm">{session.error.message}</p>

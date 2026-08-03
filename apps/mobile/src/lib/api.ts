@@ -12,6 +12,6 @@ import type { App } from "@granthalaya/api";
  * server, which only resolves from a simulator. On a physical device, set it to your
  * machine's LAN address.
  */
-const API_URL = process.env.EXPO_PUBLIC_API_URL ?? "http://localhost:3001";
+const API_URL = process.env.EXPO_PUBLIC_API_URL ?? "http://localhost:4567";
 
 export const api = treaty<App>(API_URL);
