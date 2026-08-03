@@ -8,7 +8,7 @@
     "packages/*"
   ],
   "scripts": {
-    "dev": "bun run --filter '@granthalaya/api' --filter 'web' dev",
+    "dev": "bun run --filter '@granthalaya/api' --filter 'web' --parallel dev",
     "dev:api": "bun run --filter '@granthalaya/api' dev",
     "dev:web": "bun run --filter 'web' dev",
     "dev:mobile": "bun run --filter 'mobile' start",

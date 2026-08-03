@@ -38,7 +38,8 @@ bun run check            # biome lint + format, whole repo (--write via check:fi
 bun run typecheck        # tsc --noEmit in every workspace
 bun test                 # bun:test across every workspace
 
-bun run dev              # api (:4567) + web (:4568) together
+bun run dev              # api (:4567) + web (:4568) together (--parallel: web depends on api,
+                         #   so without it bun waits for the API's dev to exit and web never starts)
 bun run dev:api / dev:web / dev:mobile
 bun run validate <path>  # check a book package against docs/book-format.md
 bun run triage <path>    # inventory a folder of PDFs, pick an extraction strategy per file
