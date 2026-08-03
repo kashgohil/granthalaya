@@ -28,6 +28,15 @@ export const Route = createRootRouteWithContext<MyRouterContext>()({
 				rel: "stylesheet",
 				href: appCss,
 			},
+			// The SVG carries its own `prefers-color-scheme` block, so it is the mark on
+			// sandalwood against light browser chrome and on cloth against dark. The PNGs are
+			// the fallback for browsers that do not take an SVG favicon, and `/favicon.ico`
+			// is picked up without a link tag by the ones that ignore these entirely.
+			{ rel: "icon", type: "image/svg+xml", href: "/favicon.svg" },
+			{ rel: "icon", type: "image/png", sizes: "32x32", href: "/favicon-32.png" },
+			{ rel: "icon", type: "image/png", sizes: "16x16", href: "/favicon-16.png" },
+			{ rel: "apple-touch-icon", sizes: "180x180", href: "/apple-touch-icon.png" },
+			{ rel: "manifest", href: "/site.webmanifest" },
 		],
 	}),
 	shellComponent: RootDocument,
