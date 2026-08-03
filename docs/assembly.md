@@ -89,6 +89,21 @@ listing them would bury the three above.
 Prose folds printed line breaks into flowing text; verse keeps them, because in verse the line
 breaks are the poet's rather than the typesetter's. `--form` picks.
 
+A *paragraph* break is not a line break, and it survives. Two fragments of one passage are
+always two different blocks — a printed number closes a passage, so no block contributes twice
+to the same one — which makes the page the deciding evidence:
+
+| Boundary | Read as | Why |
+|---|---|---|
+| Two blocks **on one page** | A paragraph break, kept | The OCR split them because the typesetter did: the second begins with a first-line indent, mid-passage |
+| Two blocks **across a page** | The same paragraph carrying on, folded | The ordinary way a passage spans two pages. The only printed signal for a *new* paragraph at the top of a page is that indent, and block-level boxes cannot see it — so the join is folded and `spans-pages` sends a human to the image |
+| Either side is a **quotation** | A paragraph break, kept | A Sanskrit shloka is set apart rather than run into the prose around it |
+
+Folding these would be a quiet loss: વાત ૬૭ of the first real book is 4,904 characters over
+thirteen blocks, and it is an enumerated list — `(૨)` through `(૭)` each open a paragraph. As one
+run it reads as a wall of text in the studio and in the reader alike. Across the book the rule
+recovers 328 paragraph breaks in 143 of 625 passages.
+
 Run over the four real OCR'd pages, the pass fires exactly six times: one hyphen join
 (`વૈરાટ-પુરુષમાં`) and the five footnote markers, matching what page 86's footnote block
 defines. Nothing else changes, and every page stays at zero orthography violations.
