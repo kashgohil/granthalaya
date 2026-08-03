@@ -188,6 +188,35 @@ test("a Devanagari quotation stays in the discourse, set apart and flagged", () 
 	expect(verses[0]?.text).toContain("\nधर्मक्षेत्रे कुरुक्षेत्रे समवेता युयुत्सवः\n");
 });
 
+test("two blocks on one page are two printed paragraphs", () => {
+	// Page 90 of the first real book: વાત ૬૭ runs on, and the second block begins with a
+	// first-line indent. The OCR split them because the typesetter did, so the break is real —
+	// folding it into a space is what made a 4,900-character passage read as one wall of text.
+	const verses = allVerses([
+		page(90, [
+			block("આવી રીતનાં લક્ષણ જણાય ત્યારે એમ જાણવું જે, આ અક્ષરધામનો મુક્ત છે."),
+			block("આ જે સાત પ્રકારના મુક્તનાં લક્ષણ કહ્યાં, તે પ્રકટ ભગવાનના મળેલા. ॥૬૭॥"),
+		]),
+	]);
+	expect(verses).toHaveLength(1);
+	expect(verses[0]?.text).toBe(
+		"આવી રીતનાં લક્ષણ જણાય ત્યારે એમ જાણવું જે, આ અક્ષરધામનો મુક્ત છે.\n" +
+			"આ જે સાત પ્રકારના મુક્તનાં લક્ષણ કહ્યાં, તે પ્રકટ ભગવાનના મળેલા. ॥",
+	);
+});
+
+test("a block boundary across a page is a paragraph carrying on, not a new one", () => {
+	// The other half of the rule above, and the reason it is not simply "every block boundary".
+	// A paragraph continuing is the ordinary way a passage spans two pages; the only printed
+	// signal for a new one at the top of a page is the indent, which block boxes cannot see.
+	const verses = allVerses([
+		page(84, [block("ચંદ્રમા જેવા મુક્ત છે તે તો જેમ ચંદ્રમા ઊગે ત્યારે તેનો")]),
+		page(85, [block("પ્રકાશ ઢંકાઈ જાય પણ સૂઝે ખરું. ॥૬૩॥")]),
+	]);
+	expect(verses[0]?.text).not.toContain("\n");
+	expect(verses[0]?.flags).toContain("spans-pages");
+});
+
 test("every passage carries the boxes its text came from", () => {
 	// P1.3's side-by-side view has to map a line back onto the page image a human is looking at.
 	const verses = allVerses([page(7, [block("વાત. ॥૧॥")])]);

@@ -309,11 +309,22 @@ export function segmentBook(pages: readonly PageBlocks[], options: SegmentOption
 		// A single newline is a printed line break, which normalization folds away; a blank line
 		// is a real paragraph break, which it keeps. So a quotation in another script is set apart
 		// with a blank line rather than run into the prose around it.
+		//
+		// Two fragments of one passage are always two different blocks — a printed number closes
+		// the passage, so a block can never contribute twice to the same one. That makes the page
+		// the deciding evidence. Within a page, the OCR split those blocks because the typesetter
+		// did: the second one begins with a first-line indent, mid-passage, and it is a paragraph
+		// break. Across a page it is the opposite — a paragraph carrying on is the ordinary way a
+		// passage spans two pages, and the only printed signal for a *new* paragraph at the top of
+		// a page is that indent, which block-level boxes cannot see. So the join is folded, and
+		// `spans-pages` already tells a human to look at it.
 		let raw = "";
 		for (const [index, fragment] of fragments.entries()) {
 			if (index > 0) {
 				const previous = fragments[index - 1] as Fragment;
-				raw += fragment.quotation || previous.quotation ? "\n\n" : "\n";
+				const paragraphBreak =
+					fragment.quotation || previous.quotation || fragment.ref.page === previous.ref.page;
+				raw += paragraphBreak ? "\n\n" : "\n";
 			}
 			raw += fragment.text;
 		}
