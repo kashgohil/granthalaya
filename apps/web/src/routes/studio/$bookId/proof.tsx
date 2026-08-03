@@ -1,12 +1,14 @@
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { ApparatusPanel } from "#/components/studio/apparatus-panel";
+import { InfoTip } from "#/components/studio/info-tip";
 import { type BlockRef, PageImage } from "#/components/studio/page-image";
 import { QueuePanel } from "#/components/studio/queue-panel";
 import { type VerseData, VerseEditor } from "#/components/studio/verse-editor";
-import { useBook } from "#/lib/studio";
+import { Button } from "#/components/ui/button";
 import type { QueueOrder, QueueQuery, VerseStatus } from "#/lib/studio-verses";
 import { usePageContext, usePatchVerse, useVerse } from "#/lib/studio-verses";
+import { cn } from "#/lib/utils";
 
 type Search = {
 	division?: string;
@@ -37,23 +39,18 @@ const PAGE_SIZE = 50;
 /**
  * The proofing workbench (P1.3).
  *
- * Three columns, in the order the work happens: the queue you are working down, the page image the
- * edition actually printed, and the text that claims to be what it says. The middle column is what
- * makes this a scripture pipeline rather than a text editor — every passage is judged against the
- * ink it came from, and the pixel boxes `assemble` carried through `assembly.json` line the two up.
- *
- * Keyboard-first, because a 442-page book is thousands of small decisions: `j`/`k` move, `Enter`
- * approves and advances (the common case, so it is the one that also moves), `e` returns to the
- * text, `Esc` leaves it, `p` toggles the page apparatus.
+ * Three columns separated by background, not a hard frame stack: queue (well), page (sunken),
+ * passage (surface). Keyboard-first: j/k move, Enter approves and advances, e edits, Esc leaves
+ * the text, p toggles the page apparatus.
  */
 function Workbench() {
 	const { bookId } = Route.useParams();
 	const search = Route.useSearch();
 	const navigate = useNavigate({ from: Route.fullPath });
 
-	const book = useBook(bookId);
 	const [offset, setOffset] = useState(0);
-	const [showApparatus, setShowApparatus] = useState(true);
+	/** null = auto (open when the page has footnotes or unresolved held-back blocks). */
+	const [apparatusOverride, setApparatusOverride] = useState<boolean | null>(null);
 	const [activePage, setActivePage] = useState<number | null>(null);
 
 	const query: QueueQuery = useMemo(
@@ -81,14 +78,18 @@ function Workbench() {
 	};
 
 	const pages = (data?.pages as number[] | undefined) ?? [];
-	// A passage that spans a page break belongs to both; the first is the default and the
-	// selector is how you check the join.
 	// biome-ignore lint/correctness/useExhaustiveDependencies: reset when the selection moves
 	useEffect(() => setActivePage(null), [data?.ref]);
 	const page = activePage ?? pages[0] ?? null;
 
 	const context = usePageContext(bookId, page);
 	const patch = usePatchVerse(bookId);
+
+	const unresolvedAside = context.data?.setAside.filter((block) => !block.resolved).length ?? 0;
+	const noteCount = context.data?.notes.length ?? 0;
+	const apparatusUseful = noteCount > 0 || unresolvedAside > 0;
+	// Auto-open when there is work on the page; once the user toggles, stick to their choice.
+	const showApparatus = apparatusOverride === null ? apparatusUseful : apparatusOverride;
 
 	// biome-ignore lint/correctness/useExhaustiveDependencies: rebind when the selection moves
 	useEffect(() => {
@@ -100,7 +101,6 @@ function Workbench() {
 				target?.isContentEditable === true;
 
 			if (typing) {
-				// Escape is the way out of the text and back to the shortcuts.
 				if (event.key === "Escape") target?.blur();
 				return;
 			}
@@ -121,12 +121,12 @@ function Workbench() {
 				document.querySelector<HTMLTextAreaElement>("[data-verse-text]")?.focus();
 			} else if (event.key === "p") {
 				event.preventDefault();
-				setShowApparatus((value) => !value);
+				setApparatusOverride(!showApparatus);
 			}
 		};
 		window.addEventListener("keydown", onKey);
 		return () => window.removeEventListener("keydown", onKey);
-	}, [data?.ref, data?.next?.id, data?.previous?.id]);
+	}, [data?.ref, data?.next?.id, data?.previous?.id, showApparatus]);
 
 	const highlight = ((data as { blocks?: BlockRef[] } | undefined)?.blocks ?? []).filter(
 		(block) => block.page === page,
@@ -139,24 +139,19 @@ function Workbench() {
 		: [];
 
 	return (
-		<div className="-mx-6 -my-8">
-			<div className="flex flex-wrap items-baseline gap-3 border-rule border-b px-6 py-2">
-				<Link to="/studio/$bookId" params={{ bookId }} className="text-sm">
-					← {bookId}
-				</Link>
-				<span className="text-ink-faint text-xs">
-					j/k move · Enter approves and advances · e edits · Esc leaves the text · p toggles the
-					page panel
-				</span>
-				{book.data ? (
-					<span className="ml-auto text-ink-faint text-xs tabular-nums">
-						{book.data.counts.approved}/{book.data.counts.total} approved
+		// The height comes from the studio shell rather than from a copy of its row heights:
+		// the header grew a second row for the breadcrumbs, and a hardcoded offset here is
+		// exactly the kind of thing that survives that change while being silently wrong.
+		<div className="grid h-[calc(100vh-var(--studio-header,4rem))] grid-cols-[20.5rem_minmax(0,1fr)_minmax(0,1.2fr)]">
+			{/* Queue — quiet list column; filters sit in a well */}
+			<section className="flex min-h-0 flex-col overflow-hidden border-rule border-r bg-surface">
+				<ColumnLabel>
+					Queue
+					<span className="ml-auto font-normal normal-case tracking-normal text-ink-faint">
+						passages
 					</span>
-				) : null}
-			</div>
-
-			<div className="grid h-[calc(100vh-8.5rem)] grid-cols-[20rem_minmax(0,1fr)_minmax(0,1.1fr)] divide-x divide-rule">
-				<div className="min-h-0 overflow-hidden px-3 py-3">
+				</ColumnLabel>
+				<div className="min-h-0 flex-1 overflow-hidden px-3 pb-3">
 					<QueuePanel
 						bookId={bookId}
 						query={query}
@@ -175,8 +170,31 @@ function Workbench() {
 						onSelect={select}
 					/>
 				</div>
+			</section>
 
-				<div className="min-h-0 overflow-y-auto bg-sunken">
+			{/* Page image */}
+			<section className="flex min-h-0 flex-col overflow-hidden bg-sunken">
+				<ColumnLabel>
+					{page === null ? "Page" : `Page ${page}`}
+					{pages.length > 1 ? (
+						<span className="ml-2 flex flex-wrap items-center gap-1 font-normal normal-case tracking-normal">
+							<span className="text-muted-foreground">spans</span>
+							{pages.map((candidate) => (
+								<Button
+									key={candidate}
+									type="button"
+									size="xs"
+									variant={candidate === page ? "default" : "secondary"}
+									onClick={() => setActivePage(candidate)}
+									className="h-6 min-w-6 px-1.5 text-[11px] tabular-nums"
+								>
+									{candidate}
+								</Button>
+							))}
+						</span>
+					) : null}
+				</ColumnLabel>
+				<div className="min-h-0 flex-1 overflow-y-auto">
 					{page === null ? (
 						<p className="p-6 text-ink-faint text-sm">
 							{data === undefined
@@ -184,32 +202,26 @@ function Workbench() {
 								: "No page image for this passage — it was typed in by hand."}
 						</p>
 					) : (
-						<>
-							{pages.length > 1 ? (
-								<div className="flex gap-1 border-rule border-b bg-surface px-3 py-2">
-									<span className="text-ink-faint text-xs">Spans pages:</span>
-									{pages.map((candidate) => (
-										<button
-											key={candidate}
-											type="button"
-											onClick={() => setActivePage(candidate)}
-											className={`rounded-sm px-2 py-0.5 text-xs ${
-												candidate === page ? "bg-brand text-brand-ink" : "bg-sunken"
-											}`}
-										>
-											{candidate}
-										</button>
-									))}
-								</div>
-							) : null}
-							<PageImage bookId={bookId} page={page} highlight={highlight} dim={otherBlocks} />
-						</>
+						<PageImage bookId={bookId} page={page} highlight={highlight} dim={otherBlocks} />
 					)}
 				</div>
+			</section>
 
-				<div className="flex min-h-0 flex-col overflow-y-auto px-4 py-3">
+			{/* Passage editor */}
+			<section className="flex min-h-0 flex-col overflow-hidden border-rule border-l bg-surface">
+				<ColumnLabel>
+					Passage
+					<span className="ml-auto flex items-center gap-1.5 font-normal normal-case tracking-normal text-ink-faint">
+						<span className="hidden sm:inline">j/k · Enter · e · Esc · p</span>
+						<InfoTip label="Keyboard shortcuts">
+							j / k move to next or previous · Enter approves and advances · e focuses the text ·
+							Esc leaves the text · p toggles the page apparatus
+						</InfoTip>
+					</span>
+				</ColumnLabel>
+				<div className="flex min-h-0 flex-1 flex-col overflow-y-auto px-5 py-4">
 					{verse.isPending && search.verse !== undefined ? (
-						<p className="text-ink-faint text-sm">Loading passage…</p>
+						<p className="text-muted-foreground text-sm">Loading passage…</p>
 					) : null}
 					{verse.isError ? (
 						<p role="alert" className="text-destructive text-sm">
@@ -217,21 +229,73 @@ function Workbench() {
 						</p>
 					) : null}
 					{data === undefined ? (
-						<p className="text-ink-faint text-sm">
+						<p className="text-muted-foreground text-sm">
 							Nothing selected. The queue is sorted{" "}
 							{query.order === "confidence" ? "worst-first" : "in book order"}.
 						</p>
 					) : (
-						<VerseEditor bookId={bookId} verse={data} onMoved={select} />
+						<VerseEditor
+							bookId={bookId}
+							verse={data}
+							onMoved={select}
+							apparatus={
+								page !== null ? (
+									showApparatus ? (
+										<div className="rounded-lg border border-border bg-paper p-3">
+											<div className="mb-3 flex items-center justify-between gap-2">
+												<p className="text-muted-foreground text-xs">
+													{noteCount} footnote{noteCount === 1 ? "" : "s"}
+													{unresolvedAside > 0 ? ` · ${unresolvedAside} held-back unchecked` : ""}
+												</p>
+												<Button
+													type="button"
+													variant="ghost"
+													size="sm"
+													className="h-7 text-xs"
+													onClick={() => setApparatusOverride(false)}
+												>
+													Hide (p)
+												</Button>
+											</div>
+											<ApparatusPanel bookId={bookId} page={page} />
+										</div>
+									) : (
+										<div className="flex items-center justify-between gap-2 rounded-lg border border-border bg-paper px-3 py-2.5">
+											<p className="text-muted-foreground text-xs">
+												{noteCount} footnote{noteCount === 1 ? "" : "s"}
+												{unresolvedAside > 0
+													? ` · ${unresolvedAside} held-back unchecked`
+													: " · nothing pending"}
+											</p>
+											<Button
+												type="button"
+												variant="secondary"
+												size="sm"
+												className="h-7 text-xs"
+												onClick={() => setApparatusOverride(true)}
+											>
+												Show (p)
+											</Button>
+										</div>
+									)
+								) : undefined
+							}
+						/>
 					)}
-
-					{showApparatus && page !== null ? (
-						<div className="mt-6 border-rule border-t pt-4">
-							<ApparatusPanel bookId={bookId} page={page} />
-						</div>
-					) : null}
 				</div>
-			</div>
+			</section>
+		</div>
+	);
+}
+
+function ColumnLabel({ children }: { children: React.ReactNode }) {
+	return (
+		<div
+			className={cn(
+				"flex h-10 shrink-0 items-center gap-2 px-4 font-medium text-[11px] text-muted-foreground uppercase tracking-wide",
+			)}
+		>
+			{children}
 		</div>
 	);
 }

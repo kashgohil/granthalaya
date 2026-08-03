@@ -4,9 +4,22 @@ import {
 	normalizeScriptureText,
 	resolveTextStyle,
 } from "@granthalaya/core";
+import type { ReactNode } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { flagDescription, flagLabel, STATUS_HELP } from "#/components/studio/flag-help";
+import { Hint, InfoTip } from "#/components/studio/info-tip";
+import {
+	Accordion,
+	AccordionContent,
+	AccordionItem,
+	AccordionTrigger,
+} from "#/components/ui/accordion";
+import { Badge } from "#/components/ui/badge";
 import { Button } from "#/components/ui/button";
+import { Card, CardContent } from "#/components/ui/card";
 import { Input } from "#/components/ui/input";
+import { Label } from "#/components/ui/label";
+import { Textarea } from "#/components/ui/textarea";
 import {
 	useDeleteVerse,
 	useInsertVerse,
@@ -16,6 +29,7 @@ import {
 	useSplitVerse,
 	type VerseStatus,
 } from "#/lib/studio-verses";
+import { cn } from "#/lib/utils";
 
 /** The Latin-equivalent size the reader starts from; core derives Gujarati's from it. */
 const BODY_SIZE = 18;
@@ -48,34 +62,27 @@ type Repair = { kind: string; before: string; after: string; context: string };
 /**
  * One passage, and everything a human needs to decide whether it is right (P1.3).
  *
- * The editing surface is set through `resolveTextStyle`/`fontFamilyStack` — the same calls the
- * reader makes — so the text is proofed at the metrics it will be read at, in the face it will be
- * read in, with no letter-spacing (which would split conjuncts) and the leading the P0.3 band
- * requires. Proofing Gujarati in a 13px monospace box would be proofing something else.
- *
- * Three affordances beyond the textarea, each earning its place:
- *
- * - **Orthography, live.** `checkOrthography` is platform-pure, so the gate that scored the page
- *   at OCR time scores every keystroke here. It cannot tell you the right word was read; it can
- *   tell you a word Gujarati cannot spell has just been typed.
- * - **The repairs list.** Normalization is a no-op on clean text and reports every change it did
- *   make, which turns "re-read this passage" into "re-read these six places".
- * - **Structure.** A dropped `॥૬૨॥` welds two passages together and no amount of text editing
- *   fixes it.
+ * Layout (top → bottom):
+ * 1. Identity — ref, status, page/confidence, flags (never one crowded line)
+ * 2. Text — the proof surface
+ * 3. Decide — number + save / proofed / approve
+ * 4. Tools — accordion for OCR, repairs, structure, note, apparatus
  */
 export function VerseEditor({
 	bookId,
 	verse,
 	onMoved,
+	apparatus,
 }: {
 	bookId: string;
 	verse: VerseData;
 	onMoved: (target: { divisionId: string; verseId: string } | null) => void;
+	/** Page apparatus (footnotes / held-back), owned by the workbench route. */
+	apparatus?: ReactNode;
 }) {
 	const [text, setText] = useState(verse.text);
 	const [number, setNumber] = useState(verse.number ?? "");
 	const [note, setNote] = useState(verse.note ?? "");
-	const [showOcr, setShowOcr] = useState(false);
 	const area = useRef<HTMLTextAreaElement>(null);
 
 	const patch = usePatchVerse(bookId);
@@ -91,7 +98,6 @@ export function VerseEditor({
 		setText(verse.text);
 		setNumber(verse.number ?? "");
 		setNote(verse.note ?? "");
-		setShowOcr(false);
 	}, [verse.ref]);
 
 	const dirty = text !== verse.text || note !== (verse.note ?? "");
@@ -121,249 +127,425 @@ export function VerseEditor({
 		);
 	};
 
+	const pageMeta =
+		pages.length === 0
+			? "No page image"
+			: pages.length === 1
+				? `Page ${pages[0]}`
+				: `Pages ${pages[0]}–${pages[pages.length - 1]} · ${pages.length} pages`;
+
+	const defaultOpen = [...(repairs.length > 0 ? ["repairs"] : []), ...(verse.note ? ["note"] : [])];
+
 	return (
-		<div className="flex h-full flex-col gap-4">
-			<header className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-				<span className="font-mono text-sm">{verse.ref}</span>
-				<StatusPill status={verse.status} />
-				{verse.confidence === null ? null : (
-					<span className="text-ink-faint text-xs tabular-nums">
-						confidence {verse.confidence.toFixed(2)}
-					</span>
-				)}
-				<span className="text-ink-faint text-xs">
-					{pages.length === 0 ? "no page" : `page ${pages.join(", ")}`}
-				</span>
-				{flags.map((flag) => (
-					<span key={flag} className="rounded-sm bg-sunken px-1.5 py-0.5 text-ink-muted text-xs">
-						{flag}
-					</span>
-				))}
-				{verse.origin === "imported" ? null : (
-					<span className="rounded-sm bg-brand-wash px-1.5 py-0.5 text-brand text-xs">
-						{verse.origin} by hand
-					</span>
-				)}
+		// Block flow inside the workbench's overflow-y-auto scroller — never h-full/flex-1
+		// here. Flex-grow + field-sizing textareas were stacking content on top of Decide/Tools.
+		<div className="flex flex-col gap-5 pb-2">
+			{/* ── 1. Identity ───────────────────────────────────────────────── */}
+			<header className="space-y-3">
+				<div className="flex items-start justify-between gap-3">
+					<div className="min-w-0 space-y-1">
+						<p className="truncate font-mono text-base font-semibold tracking-tight text-foreground">
+							{verse.ref}
+						</p>
+						<p className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-muted-foreground text-xs">
+							{pages.length > 1 ? (
+								<Hint content={`Spans pages ${pages.join(", ")}.`}>
+									<span className="cursor-default">{pageMeta}</span>
+								</Hint>
+							) : (
+								<span>{pageMeta}</span>
+							)}
+							{verse.confidence !== null ? (
+								<>
+									<span className="text-border" aria-hidden>
+										·
+									</span>
+									<span className="inline-flex items-center gap-0.5 tabular-nums">
+										Confidence {verse.confidence.toFixed(2)}
+										<InfoTip label="About confidence">
+											Machine trust from assembly. Lower scores mean re-read carefully against the
+											page.
+										</InfoTip>
+									</span>
+								</>
+							) : null}
+							{verse.origin !== "imported" ? (
+								<>
+									<span className="text-border" aria-hidden>
+										·
+									</span>
+									<span className="text-primary">{verse.origin} by hand</span>
+								</>
+							) : null}
+						</p>
+					</div>
+					<Hint content={STATUS_HELP[verse.status]}>
+						<span>
+							<StatusPill status={verse.status} />
+						</span>
+					</Hint>
+				</div>
+
+				{flags.length > 0 ? (
+					<div className="space-y-1.5">
+						<p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">
+							Flags
+						</p>
+						<div className="flex flex-wrap gap-1.5">
+							{flags.map((flag) => (
+								<Hint key={flag} content={flagDescription(flag)}>
+									<Badge variant="secondary" className="cursor-default rounded-md font-normal">
+										{flagLabel(flag)}
+									</Badge>
+								</Hint>
+							))}
+						</div>
+					</div>
+				) : null}
 			</header>
 
 			{verse.ocrChanged ? (
-				<Callout tone="warn">
-					A re-import brought different OCR text for this passage after you had edited it. Your
-					reading is what is in the box; the machine's is under “OCR text”. Resolve the disagreement
-					and approve.
-				</Callout>
+				<div className="rounded-lg border border-primary/40 bg-accent px-3 py-2.5 text-sm leading-relaxed">
+					A re-import brought different OCR text after you edited this. Your reading is in the box;
+					compare under <span className="font-medium">Tools → OCR text</span>.
+				</div>
 			) : null}
 			{verse.orphaned ? (
-				<Callout tone="warn">
-					The newest draft no longer produces this passage. It is kept, not deleted — a passage that
-					vanishes between two runs is what the number checksum exists to catch.
-				</Callout>
+				<div className="rounded-lg border border-primary/40 bg-accent px-3 py-2.5 text-sm leading-relaxed">
+					The newest draft no longer produces this passage. Kept, not deleted.
+				</div>
 			) : null}
 
-			<textarea
-				ref={area}
-				value={text}
-				onChange={(event) => setText(event.target.value)}
-				spellCheck={false}
-				dir="auto"
-				// What the workbench's `e` shortcut focuses.
-				data-verse-text=""
-				className="min-h-64 flex-1 resize-y rounded-md border border-rule bg-paper p-4 text-ink outline-none focus:border-brand"
-				style={{
-					fontFamily: fontFamilyStack("body")
-						.map((name) => (name.includes(" ") ? `"${name}"` : name))
-						.join(", "),
-					fontSize: `${style.fontSize}px`,
-					lineHeight: `${style.lineHeight}px`,
-					// Never on Gujarati: it splits conjuncts. `resolveTextStyle` already returns 0
-					// for Indic scripts, and setting it from there rather than omitting it keeps the
-					// rule in one place.
-					letterSpacing: `${style.letterSpacing}px`,
-					textAlign: style.textAlign,
-					whiteSpace: style.preserveLineBreaks ? "pre-wrap" : "pre-wrap",
-					hyphens: "none",
-				}}
-			/>
-
-			<div className="flex flex-wrap items-center gap-2 text-sm">
-				<span className={orthography.ok ? "text-ink-faint" : "font-medium text-destructive"}>
-					{orthography.ok
-						? "Orthography clean"
-						: `${orthography.count} impossible sequences (${orthography.rate.toFixed(1)} per 1000)`}
-				</span>
-				{orthography.ok ? null : (
-					<span className="text-ink-faint text-xs">
-						{orthography.violations
-							.slice(0, 3)
-							.map((violation) => violation.sample)
-							.join(" · ")}
-					</span>
-				)}
-				<button
-					type="button"
-					className="ml-auto text-ink-muted text-xs underline"
-					onClick={() =>
-						setText(
-							normalizeScriptureText(text, {
-								script: "gujr",
-								joinLines: verse.form !== "verse",
-							}).text,
-						)
-					}
-					title="Runs the same pass `assemble` ran. It is a no-op on clean text."
-				>
-					Normalize
-				</button>
-				<button
-					type="button"
-					className="text-ink-muted text-xs underline"
-					onClick={() => setShowOcr((value) => !value)}
-				>
-					{showOcr ? "Hide OCR text" : "OCR text"}
-				</button>
-			</div>
-
-			{showOcr ? (
-				<pre className="max-h-40 overflow-auto whitespace-pre-wrap rounded-md border border-rule bg-sunken p-3 font-gujarati text-sm">
-					{verse.ocrText === ""
-						? "(typed in by hand — the OCR never produced this)"
-						: verse.ocrText}
-				</pre>
-			) : null}
-
-			{repairs.length > 0 ? (
-				<details className="rounded-md border border-rule p-3 text-sm">
-					<summary className="cursor-pointer text-ink-muted">
-						{repairs.length} normalization {repairs.length === 1 ? "repair" : "repairs"} — check
-						exactly these places
-					</summary>
-					<ul className="mt-2 space-y-1.5">
-						{repairs.map((repair) => (
-							<li key={`${repair.kind}-${repair.context}`} className="text-xs">
-								<span className="text-ink-faint">{repair.kind}:</span>{" "}
-								<span className="font-gujarati">{repair.context}</span>{" "}
-								<span className="text-ink-faint">
-									({repair.before || "∅"} → {repair.after || "∅"})
-								</span>
-							</li>
-						))}
-					</ul>
-				</details>
-			) : null}
-
-			<div className="flex flex-wrap items-end gap-3 border-rule border-t pt-4">
-				<div className="text-sm">
-					<label htmlFor="verse-number" className="mb-1 block text-ink-faint text-xs">
-						Printed number
-					</label>
-					<Input
-						id="verse-number"
-						value={number}
-						onChange={(event) => setNumber(event.target.value)}
-						onBlur={() => {
-							const next = number.trim() === "" ? null : number.trim();
-							if (next !== verse.number) {
-								renumber.mutate(
-									{ divisionId: verse.divisionId, verseId: verse.id, number: next },
-									{
-										// The id follows the number, so the passage this component is
-										// showing is about to be at a different address.
-										onSuccess: (result) =>
-											onMoved({
-												divisionId: verse.divisionId,
-												verseId: (result as { id: string }).id,
-											}),
-									},
-								);
+			{/* ── 2. Text ───────────────────────────────────────────────────── */}
+			<section className="relative z-0 space-y-2">
+				<div className="flex items-center justify-between gap-2">
+					<h3 className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">
+						Text
+					</h3>
+					<div className="flex items-center gap-1">
+						<Button
+							variant="ghost"
+							size="sm"
+							className="h-7 text-xs"
+							onClick={() =>
+								setText(
+									normalizeScriptureText(text, {
+										script: "gujr",
+										joinLines: verse.form !== "verse",
+									}).text,
+								)
 							}
-						}}
-						className="w-28 font-gujarati"
-						placeholder="૬૨"
-					/>
+						>
+							Normalize
+						</Button>
+						<InfoTip label="About normalize">
+							Same repair pass assemble ran. No-op on clean text.
+						</InfoTip>
+					</div>
 				</div>
 
-				<div className="ml-auto flex flex-wrap gap-2">
-					<Button variant="outline" size="sm" onClick={() => save()} disabled={!dirty}>
-						{dirty ? "Save" : "Saved"}
-					</Button>
-					<Button variant="outline" size="sm" onClick={() => save({ status: "proofed" })}>
-						Mark proofed
-					</Button>
-					<Button size="sm" onClick={approveAndAdvance}>
-						Approve and next
-					</Button>
-				</div>
-			</div>
-
-			<StructureActions
-				verse={verse}
-				busy={split.isPending || merge.isPending || remove.isPending || insert.isPending}
-				onSplit={() => {
-					const offset = area.current?.selectionStart ?? 0;
-					split.mutate(
-						{ divisionId: verse.divisionId, verseId: verse.id, offset },
-						{ onSuccess: () => onMoved({ divisionId: verse.divisionId, verseId: verse.id }) },
-					);
-				}}
-				onMerge={(direction) =>
-					merge.mutate(
-						{ divisionId: verse.divisionId, verseId: verse.id, direction },
-						{
-							onSuccess: (result) =>
-								onMoved({
-									divisionId: verse.divisionId,
-									verseId: (result as { survivor: string }).survivor,
-								}),
-						},
-					)
-				}
-				onDelete={() =>
-					remove.mutate(
-						{ divisionId: verse.divisionId, verseId: verse.id },
-						{
-							onSuccess: () =>
-								onMoved(
-									verse.next === null
-										? null
-										: { divisionId: verse.next.divisionId, verseId: verse.next.id },
-								),
-						},
-					)
-				}
-				onInsert={(text, number) =>
-					insert.mutate(
-						{
-							divisionId: verse.divisionId,
-							afterVerseId: verse.id,
-							text,
-							number,
-						},
-						{
-							onSuccess: (result) =>
-								onMoved({
-									divisionId: verse.divisionId,
-									verseId: (result as { id: string }).id,
-								}),
-						},
-					)
-				}
-			/>
-
-			<div className="text-sm">
-				<label htmlFor="verse-note" className="mb-1 block text-ink-faint text-xs">
-					Your note — a doubt, a question, something for layer authoring
-				</label>
+				{/* Native textarea, not shadcn Textarea: that component uses field-sizing-content,
+				    which grows the box with the text and painted over Decide/Tools. Fixed height +
+				    overflow keeps long passages inside the box. */}
 				<textarea
-					id="verse-note"
-					value={note}
-					onChange={(event) => setNote(event.target.value)}
-					onBlur={() => {
-						if (note !== (verse.note ?? "")) save();
+					ref={area}
+					value={text}
+					onChange={(event) => setText(event.target.value)}
+					spellCheck={false}
+					dir="auto"
+					data-verse-text=""
+					className={cn(
+						"h-64 max-h-[min(28rem,50vh)] min-h-48 w-full resize-y overflow-y-auto rounded-xl border border-input bg-paper p-4 text-ink outline-none",
+						"focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50",
+					)}
+					style={{
+						fontFamily: fontFamilyStack("body")
+							.map((name) => (name.includes(" ") ? `"${name}"` : name))
+							.join(", "),
+						fontSize: `${style.fontSize}px`,
+						lineHeight: `${style.lineHeight}px`,
+						letterSpacing: `${style.letterSpacing}px`,
+						textAlign: style.textAlign,
+						whiteSpace: "pre-wrap",
+						hyphens: "none",
 					}}
-					rows={2}
-					className="w-full resize-y rounded-md border border-rule bg-surface p-2 text-sm outline-none focus:border-brand"
 				/>
-			</div>
+
+				<div
+					className={cn(
+						"flex items-center gap-1.5 text-xs",
+						orthography.ok ? "text-muted-foreground" : "text-destructive",
+					)}
+				>
+					<span
+						className={cn(
+							"inline-block size-1.5 shrink-0 rounded-full",
+							orthography.ok ? "bg-muted-foreground/40" : "bg-destructive",
+						)}
+					/>
+					<span className={orthography.ok ? "" : "font-medium"}>
+						{orthography.ok
+							? "Orthography clean"
+							: `${orthography.count} impossible sequences (${orthography.rate.toFixed(1)} / 1000)`}
+					</span>
+					{!orthography.ok ? (
+						<span className="min-w-0 truncate text-muted-foreground">
+							{orthography.violations
+								.slice(0, 2)
+								.map((v) => v.sample)
+								.join(" · ")}
+						</span>
+					) : null}
+					<InfoTip label="About orthography">
+						Live spell-shape check — cannot confirm the right word, only that a sequence cannot be
+						Gujarati.
+					</InfoTip>
+				</div>
+			</section>
+
+			{/* ── 3. Decide ─────────────────────────────────────────────────── */}
+			<section className="relative z-10 space-y-2 bg-surface">
+				<div className="flex items-center gap-1">
+					<h3 className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">
+						Decide
+					</h3>
+					<InfoTip label="About deciding">
+						Proofed means read against the page. Approved clears for export (Enter does the same and
+						advances).
+					</InfoTip>
+				</div>
+				<Card className="gap-0 rounded-xl border-border bg-card py-0 shadow-none">
+					<CardContent className="flex flex-wrap items-end gap-3 px-4 py-3">
+						<div className="space-y-1.5">
+							<Label
+								htmlFor="verse-number"
+								className="flex items-center gap-0.5 text-muted-foreground text-xs"
+							>
+								Printed number
+								<InfoTip label="About printed number">
+									The folio mark as printed. Changing it renumbers the verse id.
+								</InfoTip>
+							</Label>
+							<Input
+								id="verse-number"
+								value={number}
+								onChange={(event) => setNumber(event.target.value)}
+								onBlur={() => {
+									const next = number.trim() === "" ? null : number.trim();
+									if (next !== verse.number) {
+										renumber.mutate(
+											{ divisionId: verse.divisionId, verseId: verse.id, number: next },
+											{
+												onSuccess: (result) =>
+													onMoved({
+														divisionId: verse.divisionId,
+														verseId: (result as { id: string }).id,
+													}),
+											},
+										);
+									}
+								}}
+								className="h-9 w-28 font-gujarati"
+								placeholder="૬૨"
+							/>
+						</div>
+						<div className="ml-auto flex flex-wrap items-center gap-2">
+							<Button variant="outline" size="sm" onClick={() => save()} disabled={!dirty}>
+								{dirty ? "Save" : "Saved"}
+							</Button>
+							<Button variant="outline" size="sm" onClick={() => save({ status: "proofed" })}>
+								Mark proofed
+							</Button>
+							<Button size="sm" onClick={approveAndAdvance}>
+								Approve and next
+							</Button>
+						</div>
+					</CardContent>
+				</Card>
+			</section>
+
+			{/* ── 4. Tools ──────────────────────────────────────────────────── */}
+			<section className="relative z-10 space-y-2 bg-surface">
+				<h3 className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">
+					Tools
+				</h3>
+				<Accordion
+					type="multiple"
+					defaultValue={defaultOpen}
+					className="overflow-hidden rounded-xl border border-border bg-muted/50"
+				>
+					<AccordionItem value="ocr" className="border-border px-4">
+						<AccordionTrigger className="py-3 hover:no-underline">
+							<div className="flex flex-col items-start gap-0.5 text-left">
+								<span className="font-medium text-sm">OCR text</span>
+								<span className="font-normal text-muted-foreground text-xs">
+									Machine reading — compare when you disagree
+								</span>
+							</div>
+						</AccordionTrigger>
+						<AccordionContent className="pb-3">
+							<pre className="max-h-40 overflow-auto whitespace-pre-wrap rounded-lg border border-border bg-paper p-3 font-gujarati text-sm leading-relaxed">
+								{verse.ocrText === ""
+									? "(typed in by hand — the OCR never produced this)"
+									: verse.ocrText}
+							</pre>
+						</AccordionContent>
+					</AccordionItem>
+
+					{repairs.length > 0 ? (
+						<AccordionItem value="repairs" className="border-border px-4">
+							<AccordionTrigger className="py-3 hover:no-underline">
+								<div className="flex flex-col items-start gap-0.5 text-left">
+									<span className="inline-flex items-center gap-2 font-medium text-sm">
+										Repairs
+										<Badge variant="secondary" className="rounded-md tabular-nums">
+											{repairs.length}
+										</Badge>
+									</span>
+									<span className="font-normal text-muted-foreground text-xs">
+										Places assemble already changed — check these first
+									</span>
+								</div>
+							</AccordionTrigger>
+							<AccordionContent className="pb-3">
+								<ul className="space-y-2 rounded-lg border border-border bg-paper p-3">
+									{repairs.map((repair) => (
+										<li
+											key={`${repair.kind}-${repair.context}`}
+											className="text-xs leading-relaxed"
+										>
+											<span className="font-medium text-muted-foreground">{repair.kind}</span>
+											<span className="mt-0.5 block font-gujarati text-sm">{repair.context}</span>
+											<span className="text-muted-foreground">
+												{repair.before || "∅"} → {repair.after || "∅"}
+											</span>
+										</li>
+									))}
+								</ul>
+							</AccordionContent>
+						</AccordionItem>
+					) : null}
+
+					<AccordionItem value="structure" className="border-border px-4">
+						<AccordionTrigger className="py-3 hover:no-underline">
+							<div className="flex flex-col items-start gap-0.5 text-left">
+								<span className="font-medium text-sm">Structure</span>
+								<span className="font-normal text-muted-foreground text-xs">
+									Split, merge, insert, or delete passages
+								</span>
+							</div>
+						</AccordionTrigger>
+						<AccordionContent className="pb-3">
+							<div className="rounded-lg border border-border bg-paper p-2">
+								<StructureActions
+									verse={verse}
+									busy={split.isPending || merge.isPending || remove.isPending || insert.isPending}
+									onSplit={() => {
+										const offset = area.current?.selectionStart ?? 0;
+										split.mutate(
+											{ divisionId: verse.divisionId, verseId: verse.id, offset },
+											{
+												onSuccess: () =>
+													onMoved({ divisionId: verse.divisionId, verseId: verse.id }),
+											},
+										);
+									}}
+									onMerge={(direction) =>
+										merge.mutate(
+											{ divisionId: verse.divisionId, verseId: verse.id, direction },
+											{
+												onSuccess: (result) =>
+													onMoved({
+														divisionId: verse.divisionId,
+														verseId: (result as { survivor: string }).survivor,
+													}),
+											},
+										)
+									}
+									onDelete={() =>
+										remove.mutate(
+											{ divisionId: verse.divisionId, verseId: verse.id },
+											{
+												onSuccess: () =>
+													onMoved(
+														verse.next === null
+															? null
+															: {
+																	divisionId: verse.next.divisionId,
+																	verseId: verse.next.id,
+																},
+													),
+											},
+										)
+									}
+									onInsert={(insertText, insertNumber) =>
+										insert.mutate(
+											{
+												divisionId: verse.divisionId,
+												afterVerseId: verse.id,
+												text: insertText,
+												number: insertNumber,
+											},
+											{
+												onSuccess: (result) =>
+													onMoved({
+														divisionId: verse.divisionId,
+														verseId: (result as { id: string }).id,
+													}),
+											},
+										)
+									}
+								/>
+							</div>
+						</AccordionContent>
+					</AccordionItem>
+
+					<AccordionItem value="note" className="border-border px-4">
+						<AccordionTrigger className="py-3 hover:no-underline">
+							<div className="flex flex-col items-start gap-0.5 text-left">
+								<span className="inline-flex items-center gap-2 font-medium text-sm">
+									Note
+									{note !== "" ? (
+										<Badge variant="outline" className="rounded-md font-normal">
+											has content
+										</Badge>
+									) : null}
+								</span>
+								<span className="font-normal text-muted-foreground text-xs">
+									Private working note — not published
+								</span>
+							</div>
+						</AccordionTrigger>
+						<AccordionContent className="pb-3">
+							<Textarea
+								id="verse-note"
+								value={note}
+								onChange={(event) => setNote(event.target.value)}
+								onBlur={() => {
+									if (note !== (verse.note ?? "")) save();
+								}}
+								rows={3}
+								placeholder="A doubt, a question, something for layer authoring…"
+								className="min-h-20 bg-paper"
+							/>
+						</AccordionContent>
+					</AccordionItem>
+
+					{apparatus !== undefined ? (
+						<AccordionItem value="apparatus" className="border-border px-4 last:border-b-0">
+							<AccordionTrigger className="py-3 hover:no-underline">
+								<div className="flex flex-col items-start gap-0.5 text-left">
+									<span className="font-medium text-sm">Page apparatus</span>
+									<span className="font-normal text-muted-foreground text-xs">
+										Footnotes and held-back blocks on this page
+									</span>
+								</div>
+							</AccordionTrigger>
+							<AccordionContent className="pb-3">{apparatus}</AccordionContent>
+						</AccordionItem>
+					) : null}
+				</Accordion>
+			</section>
 
 			{[patch, split, merge, renumber, remove, insert].map((mutation) =>
 				mutation.isError ? (
@@ -397,41 +579,46 @@ function StructureActions({
 	const [draftNumber, setDraftNumber] = useState("");
 
 	return (
-		<div className="rounded-md bg-sunken px-3 py-2 text-xs">
-			<div className="flex flex-wrap items-center gap-2">
-				<span className="text-ink-faint">Structure</span>
-				<Button variant="ghost" size="sm" disabled={busy} onClick={onSplit}>
+		<div className="space-y-2">
+			<div className="flex flex-wrap items-center gap-1">
+				<Button variant="secondary" size="sm" disabled={busy} onClick={onSplit}>
 					Split at cursor
 				</Button>
+				<Hint content="The earlier passage survives: in a printed book the number closes a passage.">
+					<span>
+						<Button
+							variant="secondary"
+							size="sm"
+							disabled={busy || verse.previous === null}
+							onClick={() => onMerge("previous")}
+						>
+							Merge into previous
+						</Button>
+					</span>
+				</Hint>
 				<Button
-					variant="ghost"
-					size="sm"
-					disabled={busy || verse.previous === null}
-					onClick={() => onMerge("previous")}
-					title="The earlier passage survives: in a printed book the number closes a passage."
-				>
-					Merge into previous
-				</Button>
-				<Button
-					variant="ghost"
+					variant="secondary"
 					size="sm"
 					disabled={busy || verse.next === null}
 					onClick={() => onMerge("next")}
 				>
 					Absorb next
 				</Button>
-				<Button
-					variant="ghost"
-					size="sm"
-					disabled={busy}
-					onClick={() => setInserting((value) => !value)}
-					title="For a passage the OCR missed entirely — the gap the number checksum reports."
-				>
-					Insert after
-				</Button>
+				<Hint content="For a passage the OCR missed entirely.">
+					<span>
+						<Button
+							variant="secondary"
+							size="sm"
+							disabled={busy}
+							onClick={() => setInserting((value) => !value)}
+						>
+							Insert after
+						</Button>
+					</span>
+				</Hint>
 				{confirmingDelete ? (
 					<>
-						<span className="text-destructive">Delete this passage?</span>
+						<span className="text-destructive text-xs">Delete this passage?</span>
 						<Button variant="destructive" size="sm" disabled={busy} onClick={onDelete}>
 							Yes, delete
 						</Button>
@@ -440,33 +627,35 @@ function StructureActions({
 						</Button>
 					</>
 				) : (
-					<Button
-						variant="ghost"
-						size="sm"
-						className="ml-auto text-destructive"
-						onClick={() => setConfirmingDelete(true)}
-						title="For a block that is not text at all — a caption, a running head the filter missed."
-					>
-						Delete
-					</Button>
+					<Hint content="For a block that is not text — a caption or running head.">
+						<span className="ml-auto">
+							<Button
+								variant="ghost"
+								size="sm"
+								className="text-destructive"
+								onClick={() => setConfirmingDelete(true)}
+							>
+								Delete
+							</Button>
+						</span>
+					</Hint>
 				)}
 			</div>
 
 			{inserting ? (
-				<div className="mt-2 border-rule border-t pt-2">
-					<p className="mb-2 text-ink-faint">
-						A passage the OCR never produced — type it from the page image. It gets no pixel boxes,
-						because there is nothing to line it up against.
+				<div className="space-y-2 border-border border-t pt-2">
+					<p className="text-muted-foreground text-xs leading-relaxed">
+						Type the passage from the page image. It gets no pixel boxes — the OCR never saw it.
 					</p>
-					<textarea
+					<Textarea
 						value={draft}
 						onChange={(event) => setDraft(event.target.value)}
 						rows={4}
 						dir="auto"
 						placeholder="The passage as printed"
-						className="w-full resize-y rounded-sm border border-rule bg-paper p-2 font-gujarati text-sm leading-relaxed outline-none focus:border-brand"
+						className="min-h-20 bg-paper font-gujarati"
 					/>
-					<div className="mt-2 flex items-center gap-2">
+					<div className="flex items-center gap-2">
 						<Input
 							value={draftNumber}
 							onChange={(event) => setDraftNumber(event.target.value)}
@@ -496,21 +685,11 @@ function StructureActions({
 }
 
 function StatusPill({ status }: { status: VerseStatus }) {
-	const tone =
-		status === "approved"
-			? "bg-brand text-brand-ink"
-			: status === "proofed"
-				? "bg-brand-wash text-brand"
-				: "bg-sunken text-ink-muted";
-	return <span className={`rounded-sm px-1.5 py-0.5 text-xs ${tone}`}>{status}</span>;
-}
-
-function Callout({ tone, children }: { tone: "warn"; children: React.ReactNode }) {
+	const variant =
+		status === "approved" ? "default" : status === "proofed" ? "secondary" : "outline";
 	return (
-		<p
-			className={`rounded-md p-3 text-sm ${tone === "warn" ? "border border-brand bg-brand-wash" : ""}`}
-		>
-			{children}
-		</p>
+		<Badge variant={variant} className="cursor-default rounded-md capitalize">
+			{status === "raw" ? "unread" : status}
+		</Badge>
 	);
 }
