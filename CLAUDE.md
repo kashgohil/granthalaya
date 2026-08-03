@@ -59,7 +59,7 @@ bun run start            # run once
 # apps/web (run from apps/web)
 bun run dev              # Vite dev server on :4568
 bun run build            # production build
-bun run generate-routes  # regenerate TanStack Router route tree
+bun run generate-routes  # regenerate TanStack Router route tree (see the caveat below)
 
 # apps/mobile (run from apps/mobile)
 bun run start            # expo start
@@ -96,7 +96,10 @@ next to the code as `*.test.ts`.
   (`apps/*/src/lib/api.ts`) — never hand-write fetch calls against the API
 
 ### apps/web
-- File-based routing in `src/routes/`; `src/routeTree.gen.ts` is generated — never edit it by hand
+- File-based routing in `src/routes/`; `src/routeTree.gen.ts` is generated — never edit it by hand.
+  **`bun run generate-routes` alone is not enough**: `tsr generate` strips the
+  `declare module '@tanstack/react-start'` block that the Start plugin appends, so run
+  `bun run build` (or `dev`) afterwards and commit the file the *build* produced
 - Import alias `#/*` → `./src/*`
 - shadcn/ui (new-york style, zinc base, lucide icons) in `#/components/ui`; add components with `bunx shadcn@latest add <name>`
 - Tailwind 4 CSS-first config in `src/styles.css` (no tailwind.config file)
