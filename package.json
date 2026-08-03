@@ -26,6 +26,7 @@
     "db:studio": "bun run --filter '@granthalaya/db' db:studio",
     "fonts:sync": "bun scripts/fetch-fonts.ts",
     "design:sync": "bun scripts/sync-design.ts",
+    "icons:sync": "bun scripts/sync-icons.ts",
     "admin:password": "bun scripts/admin-password.ts"
   },
   "devDependencies": {
