@@ -25,7 +25,8 @@
     "db:migrate": "bun run --filter '@granthalaya/db' db:migrate",
     "db:studio": "bun run --filter '@granthalaya/db' db:studio",
     "fonts:sync": "bun scripts/fetch-fonts.ts",
-    "design:sync": "bun scripts/sync-design.ts"
+    "design:sync": "bun scripts/sync-design.ts",
+    "admin:password": "bun scripts/admin-password.ts"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.5.6",
