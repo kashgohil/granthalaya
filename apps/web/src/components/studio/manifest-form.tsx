@@ -27,9 +27,12 @@ const clean = (value: string) => value.trim();
 export function ManifestForm({
 	bookId,
 	manifest,
+	embedded = false,
 }: {
 	bookId: string;
 	manifest: Record<string, unknown>;
+	/** When true, the outer card chrome is owned by a parent StudioPanel. */
+	embedded?: boolean;
 }) {
 	const current = manifest as Manifest;
 	const patch = usePatchManifest(bookId);
@@ -68,12 +71,19 @@ export function ManifestForm({
 	};
 
 	return (
-		<form onSubmit={submit} className="rounded-lg border border-rule bg-surface p-5">
-			<h2 className="font-medium text-base">Edition and rights</h2>
-			<p className="mt-0.5 mb-4 text-ink-faint text-xs">
-				A re-import leaves these alone — they are the one part of a package a machine can never
-				supply.
-			</p>
+		<form
+			onSubmit={submit}
+			className={embedded ? "" : "rounded-lg border border-rule bg-surface p-5"}
+		>
+			{embedded ? null : (
+				<>
+					<h2 className="font-medium text-base">Edition and rights</h2>
+					<p className="mt-0.5 mb-4 text-ink-faint text-xs">
+						A re-import leaves these alone — they are the one part of a package a machine can never
+						supply.
+					</p>
+				</>
+			)}
 
 			<div className="grid gap-4 sm:grid-cols-2">
 				<Field id="mf-title-gu" label="Title, as printed" hint="Gujarati">

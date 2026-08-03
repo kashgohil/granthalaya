@@ -1,9 +1,15 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import type { ReactNode } from "react";
+import { type AttentionItem, AttentionList } from "#/components/studio/attention-list";
 import { type Division, DivisionRow } from "#/components/studio/division-row";
+import { ExportButton } from "#/components/studio/export-button";
 import { ManifestForm } from "#/components/studio/manifest-form";
 import { ProgressMeter } from "#/components/studio/progress-meter";
+import { StudioPageHeader } from "#/components/studio/studio-page-header";
+import { StudioPanel } from "#/components/studio/studio-panel";
+import { buttonVariants } from "#/components/ui/button";
 import { useBook } from "#/lib/studio";
+import { cn } from "#/lib/utils";
 
 export const Route = createFileRoute("/studio/$bookId/")({ component: BookOverview });
 
@@ -20,11 +26,9 @@ type Sequence = {
 /**
  * What is true about a book right now (P1.3).
  *
- * The screen is built around one contrast: **what the machine concluded when it was imported**,
- * beside **what is true now**. The verse-number sequence is the only checksum this stage of the
- * pipeline has — a passage the OCR dropped leaves no other trace, because the text simply reads
- * on — so it is recomputed from the current rows every time this page loads. Fixing a gap in the
- * workbench makes it disappear here, which is what turns a report into an instrument.
+ * Hero → attention → edition → structure → reference. The verse-number sequence is the only
+ * checksum this stage of the pipeline has — a passage the OCR dropped leaves no other trace —
+ * so it is recomputed from the current rows every time this page loads.
  */
 function BookOverview() {
 	const { bookId } = Route.useParams();
@@ -55,63 +59,156 @@ function BookOverview() {
 	};
 	const live = data.sequence as Sequence;
 
+	const sequenceProblems = live.missing.length + live.duplicates.length + live.outOfOrder.length;
+
+	const attention: AttentionItem[] = [];
+	for (const need of data.needsHuman) {
+		attention.push({ id: `need-${need}`, label: need });
+	}
+	if (!data.pagesDir) {
+		attention.push({
+			id: "no-pages",
+			label: "No page images linked — the workbench cannot show the ink this text came from.",
+		});
+	}
+	if (live.missing.length > 0) {
+		attention.push({
+			id: "missing",
+			label: (
+				<>
+					{live.missing.length} missing verse number
+					{live.missing.length === 1 ? "" : "s"}:{" "}
+					<span className="tabular-nums">{live.missing.join(", ")}</span>
+				</>
+			),
+		});
+	}
+	if (live.duplicates.length > 0) {
+		attention.push({
+			id: "duplicates",
+			label: (
+				<>
+					{live.duplicates.length} repeated number
+					{live.duplicates.length === 1 ? "" : "s"}:{" "}
+					<span className="tabular-nums">{live.duplicates.join(", ")}</span>
+				</>
+			),
+		});
+	}
+	if (live.outOfOrder.length > 0) {
+		attention.push({
+			id: "out-of-order",
+			label: (
+				<>
+					{live.outOfOrder.length} out-of-order number
+					{live.outOfOrder.length === 1 ? "" : "s"}:{" "}
+					<span className="tabular-nums">{live.outOfOrder.join(", ")}</span>
+				</>
+			),
+		});
+	}
+	if (data.counts.orphaned > 0) {
+		attention.push({
+			id: "orphaned",
+			label: `${data.counts.orphaned} passage${data.counts.orphaned === 1 ? "" : "s"} the newest draft no longer produces — marked, not deleted.`,
+		});
+	}
+	if (data.counts.setAsideUnresolved > 0) {
+		attention.push({
+			id: "set-aside",
+			label: `${data.counts.setAsideUnresolved} held-back block${data.counts.setAsideUnresolved === 1 ? "" : "s"} not yet checked in the workbench.`,
+		});
+	}
+	if (data.counts.raw > 0) {
+		attention.push({
+			id: "raw",
+			label: `${data.counts.raw} unread passage${data.counts.raw === 1 ? "" : "s"} still in the queue.`,
+		});
+	} else if (data.counts.proofed > 0) {
+		attention.push({
+			id: "proofed",
+			label: `${data.counts.proofed} passage${data.counts.proofed === 1 ? "" : "s"} proofed but not yet approved.`,
+		});
+	}
+
 	return (
-		<div className="space-y-8">
-			<header className="flex flex-wrap items-start justify-between gap-4">
-				<div>
-					<h1 className="display-title font-gujarati text-2xl">
+		<div className="space-y-6">
+			<StudioPageHeader
+				title={
+					<span className="font-gujarati">
 						{manifest.title?.gu ?? manifest.title?.en ?? data.id}
-					</h1>
-					<p className="mt-1 font-mono text-ink-faint text-xs">
-						{data.id} · {manifest.contentStatus ?? "draft"} · v{manifest.contentVersion}
-					</p>
+					</span>
+				}
+				meta={`${data.id} · ${manifest.contentStatus ?? "draft"} · v${manifest.contentVersion}`}
+				actions={
+					<Link
+						to="/studio/$bookId/proof"
+						params={{ bookId }}
+						className={cn(buttonVariants({ size: "sm" }), "no-underline")}
+					>
+						Open workbench
+					</Link>
+				}
+			>
+				<div className="max-w-md space-y-3">
+					<ProgressMeter counts={data.counts} />
+					<ExportButton bookId={bookId} counts={data.counts} needsHuman={data.needsHuman} />
 				</div>
-				<Link
-					to="/studio/$bookId/proof"
-					params={{ bookId }}
-					className="rounded-md bg-brand px-4 py-2 font-medium text-brand-ink text-sm no-underline"
-				>
-					Open the workbench
-				</Link>
-			</header>
+			</StudioPageHeader>
 
-			<ProgressMeter counts={data.counts} className="max-w-md" />
-
-			{data.needsHuman.length > 0 ? (
-				<Panel
-					title="Only you can supply these"
-					note="`assemble` writes `unknown` rather than inventing them. Export refuses while any remain."
-					tone="warn"
-				>
-					<ul className="list-disc space-y-1 pl-5 text-sm">
-						{data.needsHuman.map((need) => (
-							<li key={need}>{need}</li>
-						))}
-					</ul>
-					{imported.runningHeads.length > 0 ? (
-						<p className="mt-3 text-ink-faint text-xs">
-							Evidence for the title — the running heads these pages printed:{" "}
-							{imported.runningHeads.map((head) => (
-								<span key={head.text} className="font-gujarati">
-									“{head.text}” ({head.pages}×){" "}
-								</span>
-							))}
-						</p>
-					) : null}
-				</Panel>
+			{imported.runningHeads.length > 0 && data.needsHuman.length > 0 ? (
+				<p className="text-ink-faint text-xs">
+					Evidence for the title — running heads these pages printed:{" "}
+					{imported.runningHeads.map((head) => (
+						<span key={head.text} className="font-gujarati">
+							“{head.text}” ({head.pages}×){" "}
+						</span>
+					))}
+				</p>
 			) : null}
 
-			<ManifestForm bookId={bookId} manifest={data.manifest as Record<string, unknown>} />
+			<AttentionList
+				items={attention}
+				empty="Every passage is approved and the edition fields are filled. Export when ready."
+			/>
+
+			<StudioPanel
+				title="Edition and rights"
+				note="A re-import leaves these alone — they are the one part of a package a machine can never supply."
+			>
+				<ManifestForm
+					bookId={bookId}
+					manifest={data.manifest as Record<string, unknown>}
+					embedded
+				/>
+			</StudioPanel>
+
+			<StudioPanel
+				title="Structure"
+				note="Section ids stay positional until P1.4 can transliterate them."
+			>
+				<ul className="divide-y divide-rule text-sm">
+					{data.divisions.map((division) => (
+						<DivisionRow key={division.id} bookId={bookId} division={division as Division} />
+					))}
+				</ul>
+				{(data.counts.notes > 0 || data.counts.setAside > 0) && (
+					<p className="mt-4 border-rule border-t pt-3 text-ink-faint text-xs">
+						{data.counts.notes} footnotes and {data.counts.setAside} held-back blocks are reviewed
+						page by page in the workbench
+						{data.counts.setAsideUnresolved > 0
+							? ` (${data.counts.setAsideUnresolved} still unchecked)`
+							: ""}
+						.
+					</p>
+				)}
+			</StudioPanel>
 
 			<div className="grid gap-6 lg:grid-cols-2">
-				<Panel
-					title="Verse-number sequence, now"
+				<StudioPanel
+					title="Verse-number sequence"
 					note="The only checksum this stage has: a dropped passage leaves no other trace."
-					tone={
-						live.missing.length + live.duplicates.length + live.outOfOrder.length > 0
-							? "warn"
-							: "plain"
-					}
+					tone={sequenceProblems > 0 ? "warn" : "plain"}
 				>
 					<SequenceReport sequence={live} />
 					{JSON.stringify(live) === JSON.stringify(imported.sequence) ? null : (
@@ -122,13 +219,13 @@ function BookOverview() {
 							</div>
 						</details>
 					)}
-				</Panel>
+				</StudioPanel>
 
-				<Panel
+				<StudioPanel
 					title="Provenance"
 					note="This PDF → these images → this text → this package. Each hop pins the last by hash."
 				>
-					<dl className="space-y-1 text-sm">
+					<dl className="space-y-1.5 text-sm">
 						<Row label="Source">{data.sourceFile}</Row>
 						<Row label="SHA-256">
 							<span className="font-mono text-xs">{data.sourceSha256}</span>
@@ -146,36 +243,8 @@ function BookOverview() {
 								: `${imported.numbering.offset} behind the PDF's page number`}
 						</Row>
 					</dl>
-				</Panel>
+				</StudioPanel>
 			</div>
-
-			<Panel
-				title="Structure"
-				note="Section ids stay positional until P1.4 can transliterate them."
-			>
-				<ul className="divide-y divide-rule text-sm">
-					{data.divisions.map((division) => (
-						<DivisionRow key={division.id} bookId={bookId} division={division as Division} />
-					))}
-				</ul>
-			</Panel>
-
-			<Panel
-				title="Held back by the pipeline"
-				note="Nothing is dropped silently — a silent drop is indistinguishable from text the OCR never saw."
-			>
-				<p className="text-sm">
-					{data.counts.notes} footnotes kept out of the discourse, and {data.counts.setAside} blocks
-					set aside ({data.counts.setAsideUnresolved} not yet looked at). Both are reviewed page by
-					page in the workbench.
-				</p>
-				{data.counts.orphaned > 0 ? (
-					<p className="mt-2 text-destructive text-sm">
-						{data.counts.orphaned} passages the newest draft no longer produces. Marked, not
-						deleted.
-					</p>
-				) : null}
-			</Panel>
 		</div>
 	);
 }
@@ -217,29 +286,5 @@ function Row({ label, children }: { label: string; children: ReactNode }) {
 			<dt className="w-32 shrink-0 text-ink-faint">{label}</dt>
 			<dd className="min-w-0 break-all">{children}</dd>
 		</div>
-	);
-}
-
-function Panel({
-	title,
-	note,
-	tone = "plain",
-	children,
-}: {
-	title: string;
-	note?: string;
-	tone?: "plain" | "warn";
-	children: ReactNode;
-}) {
-	return (
-		<section
-			className={`rounded-lg border p-5 ${
-				tone === "warn" ? "border-brand bg-brand-wash" : "border-rule bg-surface"
-			}`}
-		>
-			<h2 className="font-medium text-base">{title}</h2>
-			{note ? <p className="mt-0.5 mb-3 text-ink-faint text-xs">{note}</p> : null}
-			{children}
-		</section>
 	);
 }
