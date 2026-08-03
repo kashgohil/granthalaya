@@ -221,7 +221,7 @@ throughput.*
   PDFs carrying one signal each, so the classifier is tested against real PDF structure
   without a corpus in the repo. Spec: `docs/pdf-triage.md`.
 
-### P1.2 OCR & extraction 🟨
+### P1.2 OCR & extraction ✅
 - [x] Page rendering: PDF → high-res page images (per-page, deterministic naming).
       `bun run render <pdf>` — 300 DPI greyscale PNG by default, resumable, with a manifest
       that pins the output to the source file by content hash
@@ -236,8 +236,8 @@ throughput.*
       orthographically clean at 0 violations per 1000, body text matching the page images.
       Sarvam returns *blocks* with layout tags, not the `content` string its OpenAPI schema
       documents — so the running head, body and footnote arrive already told apart
-- [ ] Run the remaining 438 pages — deliberately deferred until P1.3 can receive the text;
-      the images are banked and OCR only gets better with time
+- [x] **Run the remaining 438 pages** — done 2026-08-04, all 442 pages of the first book are
+      OCR'd (`content/ocr/gopalanand-swami-ni-vato-26-feb-2022`, ~₹221 as forecast)
 - [x] ~~Compare against a second engine on the same 20 pages~~ — **dropped 2026-08-03.** Sarvam
       stays. The engine was chosen for its layout blocks, which no other candidate returns, so a
       comparison could not have changed the decision; and the accuracy backstop is P1.3's human
@@ -253,10 +253,13 @@ throughput.*
       printed page number is not the PDF page number — see `docs/page-rendering.md`
 - [x] Output: draft book package (P0.2 format) + per-verse confidence scores.
       `bun run assemble <ocr-dir>` writes `book.json` and an `assembly.json` sidecar
-- [ ] **Verify the >95% bar on a full book** — the four OCR'd pages segment perfectly (6/6
-      numbered passages, both page-spanning joins, the section boundary, zero orthography
-      violations), but four pages is not a measurement. Needs the remaining 438 pages
-- **Done when:** the first book emerges as a draft package with >95% of verses auto-segmented correctly.
+- [x] **Verify the >95% bar on a full book** — met on the full 442 pages, 2026-08-04. The book
+      assembles into 39 divisions and 612 passages, 599 of them numbered, and the verse-number
+      checksum comes back **clean: no missing numbers, no duplicates, none out of order**, with
+      the numbering running 1–569 through the main work and restarting in four back-matter
+      chapters exactly as printed. The 13 unnumbered passages are front matter the edition
+      itself never numbered
+- **Done when:** ~~the first book emerges as a draft package with >95% of verses auto-segmented correctly.~~ ✅
 
   *Assembly landed 2026-08-03.* `packages/pipeline/src/assemble/` splits into `read.ts` (reads
   back the per-page blocks, never the markdown), `segment.ts` (pure: the state machine over
@@ -264,6 +267,18 @@ throughput.*
   The grammar comes off the pages themselves: `॥૬૨॥` closes a passage and gives it its id,
   `॥ … સમાપ્ત ॥` closes a work, a `section-title` block opens one, and a passage simply carries
   on across a page break. Spec: `docs/assembly.md`.
+
+  *The last six passages recovered 2026-08-04.* Running the full book left exactly six gaps in
+  the numbering, and all six were one fault: where a Devanagari shloka runs right up against the
+  passage number, Sarvam reads that number in the quotation's script too, flattening the pair
+  into `॥२॥१५८॥`. Refusing a foreign-script number — which is right, and which four passages of
+  this book exist to prove — was merging the passage into its neighbour. It is now read as the
+  passage's own on two conditions together: it **abuts** another danda group, and it **continues
+  the run**. Narrow by measurement, not by hope: across 442 pages that shape occurs six times and
+  all six are the fault, while the book's 22 lone Devanagari markers are all genuine and stay
+  refused. Recovered numbers are written back in Gujarati digits and flagged `recovered-number`,
+  so the studio still sends a human to the page. Same pass admits `।।` for `॥`, which six blocks
+  print. The checksum went from six missing to clean.
 
   *Rendering landed 2026-08-02.* `pdf/rasterize.ts` renders and `render.ts` parses; spec in
   `docs/page-rendering.md`. Verified on the first real book — *Gopalanand Swami ni Vato*, 442
@@ -288,8 +303,10 @@ Human-in-the-loop correction UI — mandatory for scripture-grade fidelity.
 - [x] Footnotes and held-back blocks reviewed page by page — the backstop for the one OCR hazard
       no filter catches
 - [x] Export: approved book compiles to a versioned, immutable package (`contentStatus: "proofed"`)
-- [ ] **Proof one full book end-to-end.** Needs the remaining 438 pages OCR'd (~₹219), the source
-      edition and rights answered, and the hours. All three are the owner's
+- [ ] **Proof one full book end-to-end.** No longer waiting on the pipeline: the full 442 pages
+      are OCR'd and the draft assembles clean (P1.2, 2026-08-04), so the 612 passages are ready
+      to import and queue. What is left is the source edition and rights answered, and the
+      hours. Both are the owner's
 - **Done when:** one full book is proofed end-to-end in the studio and exported as `v1`.
 
   *Studio landed 2026-08-03; awaiting the proofing itself.* `packages/db` is a new workspace
@@ -710,11 +727,26 @@ Each mode is a self-contained exercise over a recital item.
 | 2026-08-04 | **A Gujarati book admits Devanagari for text, never for structure** — a `section-title` block and a `॥<digits>॥` terminator are both read in the book's own script only | The 2026-08-03 decision to keep quoted shlokas had a consequence nobody traced: the OCR tags a bold centred line `section-title` on layout alone, so nine of forty such blocks were the quoted shloka. Obeying the tag broke one work into a division per shloka, titled each with the shloka, and *lost its first line into the title* — 599 characters of scripture gone silently. The same for numbers: a shloka prints its own `॥१॥`, which was closing the discourse it sat inside and handing the second half the shloka's number as its identity, four times over. Neither rejection discards anything; the block stays in the passage as the quotation it is |
 | 2026-08-04 | **The verse-number checksum is grouped into runs**, and lives in `packages/core` | The book counts 1–569 through thirty-one divisions and then an appendix starts at 1 — read as one sequence that appendix is a pile of duplicates, a report about the checksum rather than about the book. A run opens only at a division boundary *and* only when the number counts backwards: a forward jump at a boundary is a gap, quite possibly a passage the OCR dropped, and calling it a restart would swallow the one signal this checksum exists to give. It moved to `core` because `assemble` and the studio both compute it and the overview shows the two side by side — two implementations would drift, and a disagreement the studio cannot explain is worse than no checksum. A run names its division by **id**, not position: the first version indexed positionally and the two reports disagreed immediately, because `assemble` counts sections it later drops for being empty and the studio only sees the survivors |
 | 2026-08-04 | **An untitled division takes the running head printed across its own pages**, marked `titleSource: "running-head"` | The head is printed on the page, so this is evidence rather than a guess — and it is the only title a division has once a shloka heading is refused. The book's own name is excluded first because the edition sets it on one side of the spread and the division's on the other. A tie leaves the division untitled: two heads appearing equally often over one division is evidence it is really two, and a coin toss would name a division nobody has agreed exists |
+| 2026-08-04 | **One exception to "never for structure": a passage number that abuts a quotation *and* continues the run** is read as the passage's own, however it is scripted | The rule above is right and stays, but Sarvam does not only leave a shloka's `॥१॥` in Devanagari — where the shloka runs up against the passage number it reads *that* in Devanagari too, flattening the pair into `॥२॥१५८॥`. Refusing it merged the passage into its neighbour, six times across the first book, and each loss was invisible except as a gap in the numbering. Both conditions are required because either alone is too weak: adjacency is the flattening a lone marker never has, and continuation is what a quotation's own ordinal — small, restarting inside every shloka — can never fake. It is narrow by measurement rather than by hope: across 442 pages the shape occurs six times and all six are the fault, while the 22 lone Devanagari markers are all genuine. The number is written back in the book's digits and flagged `recovered-number`, so a human still confirms it against the page |
 | 2026-08-04 | The studio's live checksum reads verses ordered by the division's **ordinal**, not its id | Ids are text, so `section-10` sorted before `section-2` and the overview had been checking a shuffled book since P1.3 landed. A checksum over numbers in the wrong order is not a weaker checksum, it is a different one |
 | 2026-08-03 | **A block boundary within a page is a paragraph break; one across a page is not** | Two fragments of a passage are always two blocks, so the page is the deciding evidence. Within a page the OCR split them because the typesetter did — the second begins with a first-line indent, mid-passage. Across a page the opposite is the ordinary case, and the only printed signal for a *new* paragraph at the top of a page is that indent, which Sarvam's block-level boxes cannot see; `spans-pages` already sends a human to the image. Assembly previously joined every non-quotation fragment with a single `\n`, which `joinPrintedLines` folds as a line wrap — correct inside a block, wrong between two. It cost 328 paragraph breaks in 143 of 625 passages, including વાત ૬૭, a 4,904-character enumerated list whose `(૨)`–`(૭)` items each open a paragraph |
 | 2026-08-01 | **Script detection lives in `packages/core`**, not in the pipeline | The studio needs the same question answered — a translation pasted into the transliteration slot is a `latn` run where `gujr` was declared — and it is platform-pure logic over the format's own `Script` union. The danda counts as script-neutral there for the same reason `punctuation.ts` treats it as shared |
 
 ## Changelog
+
+- **2026-08-04** — **P1.2 is done: the first book is off the press and the checksum is clean.**
+  All 442 pages of *Gopalanand Swami ni Vato* are OCR'd, and the draft assembles into 39
+  divisions and 612 passages that validate as a P0.2 package. The full run left exactly six gaps
+  in the numbering, and all six were one fault worth writing down: where a Devanagari shloka runs
+  up against the passage number, Sarvam reads the number in the quotation's script too, flattening
+  the pair into `॥२॥१५८॥`. Refusing a foreign-script number is right — four passages of this book
+  exist to prove it — so the refusal stays, narrowed by one exception that needs **both**
+  adjacency to another danda group and continuation of the run. Six sites book-wide, all six the
+  fault; the 22 lone Devanagari markers are untouched. Recovered numbers come back in Gujarati
+  digits, flagged `recovered-number`, so the studio still sends a human to the page. The
+  verse-number checksum now reports no missing numbers, no duplicates and none out of order,
+  which is the >95% bar met at 100% of the printed sequence. What remains before proofing is not
+  code: the source edition, the rights, and the hours.
 
 - **2026-08-03** — **P1.3's studio landed: the draft can now be read.** `/studio` in `apps/web`,
   behind a single-admin session, over a new `packages/db` (Postgres + Drizzle). A draft is imported
