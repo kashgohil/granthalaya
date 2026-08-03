@@ -500,3 +500,83 @@ test("puts notes below a rule instead of inside the discourse", async () => {
 	expect(markdown).toBe("શરીર\n\n---\n\n૧. મૂળમાયા\n");
 	expect(renderPageMarkdown([block("શરીર", "paragraph", 1)], [])).toBe("શરીર\n");
 });
+
+/**
+ * The money test.
+ *
+ * A page that has been read has been *paid for*. Every page's text and blocks are written the
+ * moment its batch returns, so a run that is killed leaves the paid pages on disk — but the
+ * manifest is only written once the whole run finishes, and resume decides what to skip from the
+ * manifest. Deleting it is exactly what a SIGKILL, a crash or a closed lid leaves behind: the
+ * pages are there, the record of them is not.
+ */
+test("a killed run does not re-read the pages it already paid for", async () => {
+	const { pagesDir, out } = await rendered(30);
+
+	const first: string[] = [];
+	const good = fakeClient();
+	const recording = (into: string[]) =>
+		({
+			digitise: async (files: { name: string }[]) => {
+				for (const file of files) into.push(file.name);
+				return good.digitise(files as never);
+			},
+		}) as unknown as SarvamClient;
+
+	await ocrBook(optionsFor(pagesDir, out), recording(first));
+	expect(first).toHaveLength(30);
+	// The page files survive a kill; the manifest is what does not.
+	await rm(join(out, OCR_MANIFEST_FILE), { force: true });
+	expect(await Bun.file(join(out, "page-0001.blocks.json")).exists()).toBe(true);
+
+	const second: string[] = [];
+	await ocrBook(optionsFor(pagesDir, out), recording(second));
+
+	expect(second).toEqual([]);
+});
+
+test("the manifest is current after every batch, not only at the end", async () => {
+	const { pagesDir, out } = await rendered(30);
+	const good = fakeClient();
+	const seen: number[] = [];
+
+	const checkpointing = {
+		digitise: async (files: { name: string }[]) => {
+			// Read the manifest as the previous batch left it — this is what a run killed here
+			// would leave behind.
+			const manifest = await Bun.file(join(out, OCR_MANIFEST_FILE))
+				.json()
+				.catch(() => null);
+			seen.push((manifest as OcrManifest | null)?.pages.length ?? 0);
+			return good.digitise(files as never);
+		},
+	} as unknown as SarvamClient;
+
+	await ocrBook(optionsFor(pagesDir, out), checkpointing);
+
+	// Nothing before the first batch; then ten more pages recorded before each one after it.
+	expect(seen).toEqual([0, 10, 20]);
+});
+
+test("one unreadable page image does not abandon the batches already paid for", async () => {
+	const { pagesDir, out } = await rendered(30);
+	const asked: string[] = [];
+	const good = fakeClient();
+	const recording = {
+		digitise: async (files: { name: string }[]) => {
+			for (const file of files) asked.push(file.name);
+			return good.digitise(files as never);
+		},
+	} as unknown as SarvamClient;
+
+	// A page in the last batch goes missing mid-run — a half-synced drive, a stray delete.
+	await rm(join(pagesDir, "page-00025.png"), { force: true });
+	const outcome = await ocrBook(optionsFor(pagesDir, out), recording);
+
+	expect(outcome.ok).toBe(true);
+	if (!outcome.ok) return;
+	// The first two batches are kept and recorded; only the batch that could not be read fails.
+	expect(outcome.manifest.pages).toHaveLength(20);
+	expect(outcome.manifest.failures).toHaveLength(10);
+	expect(asked).toHaveLength(20);
+});

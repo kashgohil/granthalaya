@@ -330,6 +330,102 @@ async function readJson<T>(path: string): Promise<T | null> {
 }
 
 /**
+ * Turn a page's blocks into the record the manifest keeps, and write both artefacts.
+ *
+ * Shared by a live read and by recovery so the two cannot drift: what a resumed run records for
+ * a page is byte-for-byte what the original run recorded, because it is the same function over
+ * the same blocks.
+ */
+async function pageResultFrom(
+	out: string,
+	page: { readonly number: number; readonly file: string },
+	blocks: readonly Block[],
+	language: string,
+): Promise<OcrPageResult> {
+	const { body, notes, setAside } = partitionBlocks(blocks, admittedScripts(language));
+	const text = renderPageMarkdown(body, notes);
+	const file = pageTextFile(page.file, "md");
+	await Bun.write(join(out, file), text);
+
+	const profile = profileScript(text);
+	return {
+		number: page.number,
+		file,
+		blocksFile: pageTextFile(page.file, "blocks.json"),
+		blocks: blocks.length,
+		setAside: setAside.map((block) => ({
+			tag: block.tag,
+			text: block.text.length > 120 ? `${block.text.slice(0, 117)}…` : block.text,
+		})),
+		chars: text.length,
+		script: profile.dominant ?? "none",
+		scriptShare: Math.round(profile.share * 1000) / 1000,
+		orthography: scoreOf(checkOrthography(text, "gujr")),
+	};
+}
+
+/**
+ * Rebuild a page's record from the blocks file already on disk, or `null` if there isn't one.
+ *
+ * This is what stops a killed run costing money twice. The blocks are written the moment a batch
+ * returns, but the manifest is a running summary — so a process that dies leaves paid pages on
+ * disk with nothing claiming them. Reading them back is not an optimisation; it is the
+ * difference between resuming and paying again.
+ */
+async function recoverPage(
+	out: string,
+	page: { readonly number: number; readonly file: string },
+	language: string,
+): Promise<OcrPageResult | null> {
+	const saved = await readJson<{ blocks?: Block[] }>(
+		join(out, pageTextFile(page.file, "blocks.json")),
+	);
+	if (saved === null || !Array.isArray(saved.blocks)) {
+		return null;
+	}
+	return pageResultFrom(out, page, saved.blocks, language);
+}
+
+/**
+ * The pages already read, and therefore already paid for.
+ *
+ * One function, used by the pre-flight estimate and by the run itself. They had a copy each, and
+ * a copy each is how an estimate comes to promise ₹221 for a run that only reads 438 pages —
+ * or, far worse, how a run comes to re-read what an estimate said was done.
+ *
+ * Two sources, in order of authority: the manifest, and then the blocks on disk. The second is
+ * what covers a run that was killed before it could write the first.
+ */
+async function alreadyRead(
+	options: OcrOptions,
+	sourceSha256: string,
+	wanted: readonly { readonly number: number; readonly file: string }[],
+	previous: OcrManifest | null,
+): Promise<Map<number, OcrPageResult>> {
+	const kept = new Map<number, OcrPageResult>();
+	// `--force` re-reads everything; a manifest for a different source is not a resume point.
+	if (options.force || (previous !== null && previous.sourceSha256 !== sourceSha256)) {
+		return kept;
+	}
+
+	for (const page of previous?.pages ?? []) {
+		if (await Bun.file(join(options.out, page.file)).exists()) {
+			kept.set(page.number, page);
+		}
+	}
+	for (const page of wanted) {
+		if (kept.has(page.number)) {
+			continue;
+		}
+		const recovered = await recoverPage(options.out, page, options.language);
+		if (recovered !== null) {
+			kept.set(page.number, recovered);
+		}
+	}
+	return kept;
+}
+
+/**
  * OCR a rendered book. The client is a parameter so a run can be driven by a stub in tests and
  * by the real API in anger.
  */
@@ -361,28 +457,50 @@ export async function ocrBook(
 	await mkdir(options.out, { recursive: true });
 
 	const previous = await readJson<OcrManifest>(join(options.out, OCR_MANIFEST_FILE));
-	const kept = new Map<number, OcrPageResult>();
-	if (!options.force && previous !== null && previous.sourceSha256 === manifest.sourceSha256) {
-		for (const page of previous.pages) {
-			if (await Bun.file(join(options.out, page.file)).exists()) {
-				kept.set(page.number, page);
-			}
-		}
-	}
+	const kept = await alreadyRead(options, manifest.sourceSha256, wanted, previous);
 
 	const todo = wanted.filter((page) => !kept.has(page.number));
 	const results: OcrPageResult[] = [];
 	const failures: { number: number; error: string }[] = [];
 	let done = 0;
 
-	for (const batch of batchPages(todo, MAX_PAGES_PER_JOB)) {
-		const files: PageFile[] = [];
-		for (const page of batch) {
-			const bytes = new Uint8Array(await Bun.file(join(options.pagesDir, page.file)).arrayBuffer());
-			files.push({ name: page.file, bytes });
+	const writeManifest = async (): Promise<OcrManifest> => {
+		const merged = new Map<number, OcrPageResult>();
+		for (const page of [...(previous?.pages ?? []), ...kept.values(), ...results]) {
+			if (await Bun.file(join(options.out, page.file)).exists()) {
+				merged.set(page.number, page);
+			}
 		}
+		const written: OcrManifest = {
+			source: manifest.source,
+			sourceSha256: manifest.sourceSha256,
+			engine: "sarvam-vision-v1",
+			language: options.language,
+			contentType: options.contentType,
+			pageCount: manifest.pageCount,
+			pages: [...merged.values()].sort((a, b) => a.number - b.number),
+			failures,
+		};
+		await Bun.write(
+			join(options.out, OCR_MANIFEST_FILE),
+			`${JSON.stringify(written, null, "\t")}\n`,
+		);
+		return written;
+	};
 
+	for (const batch of batchPages(todo, MAX_PAGES_PER_JOB)) {
 		try {
+			// Inside the try with the request: an image that cannot be read is one batch's
+			// problem, and letting it escape here would abandon a run that has already spent
+			// money on every batch before it.
+			const files: PageFile[] = [];
+			for (const page of batch) {
+				const bytes = new Uint8Array(
+					await Bun.file(join(options.pagesDir, page.file)).arrayBuffer(),
+				);
+				files.push({ name: page.file, bytes });
+			}
+
 			const result = await client.digitise(files);
 			const byName = new Map(result.pages.map((page) => [page.fileName, page]));
 
@@ -393,37 +511,15 @@ export async function ocrBook(
 					continue;
 				}
 
-				const { body, notes, setAside } = partitionBlocks(
-					digitised.blocks,
-					admittedScripts(options.language),
-				);
-				const text = renderPageMarkdown(body, notes);
-				const file = pageTextFile(page.file, "md");
-				const blocksFile = pageTextFile(page.file, "blocks.json");
-				await Bun.write(join(options.out, file), text);
-				// The blocks are the richer artefact — tags, reading order and coordinates are what
-				// P1.3's side-by-side proofing view and verse segmentation both need. Nothing the
-				// API returned is discarded, including what was kept out of the text.
+				// The blocks go down first and whole: tags, reading order and coordinates are what
+				// P1.3's proofing view and verse segmentation both need, and they are the only
+				// copy of what was paid for. Nothing the API returned is discarded, including
+				// what was kept out of the text.
 				await Bun.write(
-					join(options.out, blocksFile),
+					join(options.out, pageTextFile(page.file, "blocks.json")),
 					`${JSON.stringify({ page: page.number, widthPx: digitised.widthPx, heightPx: digitised.heightPx, blocks: digitised.blocks }, null, "\t")}\n`,
 				);
-
-				const profile = profileScript(text);
-				results.push({
-					number: page.number,
-					file,
-					blocksFile,
-					blocks: digitised.blocks.length,
-					setAside: setAside.map((block) => ({
-						tag: block.tag,
-						text: block.text.length > 120 ? `${block.text.slice(0, 117)}…` : block.text,
-					})),
-					chars: text.length,
-					script: profile.dominant ?? "none",
-					scriptShare: Math.round(profile.share * 1000) / 1000,
-					orthography: scoreOf(checkOrthography(text, "gujr")),
-				});
+				results.push(await pageResultFrom(options.out, page, digitised.blocks, options.language));
 			}
 		} catch (cause) {
 			// One bad batch is ten pages, not a book. Record and carry on.
@@ -435,27 +531,13 @@ export async function ocrBook(
 
 		done += batch.length;
 		onProgress?.(done, todo.length);
+
+		// Checkpoint after every batch. Recovery from the blocks on disk is the backstop, but a
+		// manifest that is current to within ten pages means a killed run barely needs it.
+		await writeManifest();
 	}
 
-	const merged = new Map<number, OcrPageResult>();
-	for (const page of [...(previous?.pages ?? []), ...kept.values(), ...results]) {
-		if (await Bun.file(join(options.out, page.file)).exists()) {
-			merged.set(page.number, page);
-		}
-	}
-
-	const written: OcrManifest = {
-		source: manifest.source,
-		sourceSha256: manifest.sourceSha256,
-		engine: "sarvam-vision-v1",
-		language: options.language,
-		contentType: options.contentType,
-		pageCount: manifest.pageCount,
-		pages: [...merged.values()].sort((a, b) => a.number - b.number),
-		failures,
-	};
-	await Bun.write(join(options.out, OCR_MANIFEST_FILE), `${JSON.stringify(written, null, "\t")}\n`);
-
+	const written = await writeManifest();
 	return { ok: true, manifest: written, done: results.length, reused: kept.size };
 }
 
@@ -483,19 +565,8 @@ export async function planOcr(
 					return manifest.pages.filter((page) => numbers.has(page.number));
 				})();
 
-	if (options.force) {
-		return { ok: true, total: wanted.length, todo: wanted.length };
-	}
-
 	const previous = await readJson<OcrManifest>(join(options.out, OCR_MANIFEST_FILE));
-	const kept = new Set<number>();
-	if (previous !== null && previous.sourceSha256 === manifest.sourceSha256) {
-		for (const page of previous.pages) {
-			if (await Bun.file(join(options.out, page.file)).exists()) {
-				kept.add(page.number);
-			}
-		}
-	}
+	const kept = await alreadyRead(options, manifest.sourceSha256, wanted, previous);
 	return {
 		ok: true,
 		total: wanted.length,
