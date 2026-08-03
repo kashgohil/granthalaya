@@ -15,6 +15,20 @@ export {
 	coverFor,
 } from "./cover.ts";
 export { designTokensCss, metricCssVariables, themeCssVariables } from "./css.ts";
+export type { MarkColourway, MarkSvgOptions } from "./mark.ts";
+export {
+	MARK_COLOURWAYS,
+	MARK_DARK,
+	MARK_GEOMETRY,
+	MARK_MONO,
+	MARK_PAINTED_BOUNDS,
+	MARK_PAINTED_CENTRE,
+	MARK_PAINTED_RADIUS,
+	MARK_SAND,
+	markScaleForSafeRadius,
+	markSvg,
+	tilakPathData,
+} from "./mark.ts";
 export type { GrainSpec, MarkColor, MarkColors, ThemeName, ThemeTokens } from "./themes.ts";
 export {
 	isThemeName,
