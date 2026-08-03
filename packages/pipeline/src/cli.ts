@@ -1,5 +1,6 @@
 #!/usr/bin/env bun
 import { CORE_VERSION } from "@granthalaya/core";
+import { runAssemble } from "./assemble.ts";
 import { parseArgv, usage } from "./commands.ts";
 import { PIPELINE_VERSION } from "./meta.ts";
 import { runOcr } from "./ocr.ts";
@@ -21,6 +22,14 @@ switch (invocation.command) {
 	case "version":
 		console.log(`pipeline ${PIPELINE_VERSION}\ncore     ${CORE_VERSION}`);
 		break;
+	case "assemble": {
+		const report = await runAssemble(invocation.args);
+		console.log(report.text);
+		if (!report.ok) {
+			process.exit(1);
+		}
+		break;
+	}
 	case "ocr": {
 		const live = process.stderr.isTTY === true;
 		const report = await runOcr(invocation.args, {

@@ -7,6 +7,7 @@
 
 /** Every command the CLI understands, mapped to its one-line help text. */
 export const COMMANDS = {
+	assemble: "Turn a book's OCR into a draft package (assemble <ocr-dir>)",
 	help: "Show this help text",
 	ocr: "Read a rendered book's pages with Sarvam Vision (ocr <pages-dir>)",
 	render: "Render a PDF's pages to images for OCR and proofing (render <file.pdf>)",
