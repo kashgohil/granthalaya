@@ -1,0 +1,713 @@
+<!--
+  Generated design record, committed as documentation. Round three of the P0.4 app icon:
+  direction 1 (the tilak-chandlo) refined to its final geometry.
+
+  The canonical geometry is packages/core/src/design/mark.ts — if this page and that file
+  disagree, the code wins and this page is stale. Open it straight from disk; it reads the
+  Rasa faces out of apps/web/public/fonts.
+-->
+<title>Granthalaya — tilak-chandlo, refined</title>
+<style>
+  @font-face {
+    font-family: "Rasa";
+    font-style: normal; font-weight: 400; font-display: block;
+    src: url("../../apps/web/public/fonts/Rasa-gujarati-400.woff2") format("woff2");
+    unicode-range: U+0A80-0AFF, U+200C-200D, U+25CC;
+  }
+  @font-face {
+    font-family: "Rasa";
+    font-style: normal; font-weight: 400; font-display: block;
+    src: url("../../apps/web/public/fonts/Rasa-latin-400.woff2") format("woff2");
+    unicode-range: U+0000-00FF, U+2000-206F, U+2C60-2C7F;
+  }
+  @font-face {
+    font-family: "Noto Sans Gujarati";
+    font-style: normal; font-weight: 400; font-display: swap;
+    src: url("../../apps/web/public/fonts/NotoSansGujarati-latin-400.woff2") format("woff2");
+  }
+
+  :root {
+    --bg: #FBFAF8; --surface: #FFFFFF; --sunken: #F1EEE8;
+    --ink: #1C1917; --ink-muted: #57534E; --ink-faint: #706A65;
+    --rule: #E4DFD6; --accent: #A65328; --accent-ink: #FFFFFF; --accent-muted: #F6EAE1;
+    --shadow: rgba(28, 25, 23, 0.10);
+    --ui: "Noto Sans Gujarati", ui-sans-serif, system-ui, sans-serif;
+    --serif: "Rasa", Georgia, serif;
+    --s4: 4px; --s8: 8px; --s12: 12px; --s16: 16px;
+    --s24: 24px; --s32: 32px; --s48: 48px; --s64: 64px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #16130F; --surface: #201C17; --sunken: #100E0B;
+      --ink: #EDE6DA; --ink-muted: #B3A897; --ink-faint: #8D8477;
+      --rule: #2E2922; --accent: #DE9A55; --accent-ink: #1A1713; --accent-muted: #2E241A;
+      --shadow: rgba(0, 0, 0, 0.5);
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #16130F; --surface: #201C17; --sunken: #100E0B;
+    --ink: #EDE6DA; --ink-muted: #B3A897; --ink-faint: #8D8477;
+    --rule: #2E2922; --accent: #DE9A55; --accent-ink: #1A1713; --accent-muted: #2E241A;
+    --shadow: rgba(0, 0, 0, 0.5);
+  }
+  :root[data-theme="light"] {
+    --bg: #FBFAF8; --surface: #FFFFFF; --sunken: #F1EEE8;
+    --ink: #1C1917; --ink-muted: #57534E; --ink-faint: #706A65;
+    --rule: #E4DFD6; --accent: #A65328; --accent-ink: #FFFFFF; --accent-muted: #F6EAE1;
+    --shadow: rgba(28, 25, 23, 0.10);
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font-family: var(--ui); font-size: 15px; line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 1000px; margin: 0 auto; padding: var(--s48) var(--s24) var(--s64); }
+
+  .masthead {
+    display: flex; flex-direction: column; gap: var(--s16);
+    padding-bottom: var(--s32); border-bottom: 2px solid var(--ink);
+  }
+  .eyebrow {
+    font-size: 12px; letter-spacing: 0.14em; text-transform: uppercase;
+    color: var(--ink-faint); margin: 0;
+  }
+  .masthead h1 {
+    font-family: var(--serif); font-size: clamp(34px, 6vw, 52px);
+    line-height: 1.15; font-weight: 400; margin: 0; text-wrap: balance;
+  }
+  .standfirst { max-width: 64ch; color: var(--ink-muted); margin: 0; }
+  code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.86em; background: var(--sunken); padding: 1px 5px;
+    border-radius: 4px; color: var(--ink);
+  }
+
+  .icon {
+    display: block; border-radius: 22.5%; flex: none;
+    box-shadow: 0 1px 2px var(--shadow), 0 8px 24px var(--shadow);
+  }
+  .flat { box-shadow: none; }
+
+  section { padding: var(--s48) 0; border-bottom: 1px solid var(--rule); }
+  section h2 {
+    font-family: var(--serif); font-size: 28px; font-weight: 400;
+    margin: 0 0 var(--s8); line-height: 1.25;
+  }
+  section > p { color: var(--ink-muted); margin: 0 0 var(--s24); max-width: 64ch; font-size: 14px; }
+  .kicker {
+    font-size: 12px; letter-spacing: 0.12em; text-transform: uppercase;
+    color: var(--ink-faint); margin: 0 0 var(--s12);
+  }
+  .stack { display: flex; flex-direction: column; gap: var(--s24); }
+  .row { display: flex; gap: var(--s32); flex-wrap: wrap; align-items: flex-end; }
+
+  /* ---- the position picker ---- */
+  .options {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: var(--s24);
+  }
+  .option {
+    display: flex; flex-direction: column; align-items: center; gap: var(--s12);
+    padding: var(--s16); border-radius: 16px; border: 1px solid transparent;
+  }
+  .option.pick { border-color: var(--accent); background: var(--accent-muted); }
+  .option .meta { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+  .option .tag {
+    font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase;
+    color: var(--ink-faint); font-variant-numeric: tabular-nums;
+  }
+  .option.pick .tag { color: var(--accent); font-weight: 600; }
+  .option .small-row { display: flex; gap: var(--s12); align-items: flex-end; }
+
+  /* ---- ladder ---- */
+  .ladder {
+    display: flex; align-items: flex-end; gap: var(--s24);
+    padding-bottom: var(--s12); border-bottom: 1px solid var(--rule); overflow-x: auto;
+  }
+  .rung { display: flex; flex-direction: column; align-items: center; gap: var(--s8); }
+  .rung .px {
+    font-size: 11px; color: var(--ink-faint);
+    font-variant-numeric: tabular-nums; letter-spacing: 0.06em;
+  }
+  .note { font-size: 13px; color: var(--ink-muted); margin: 0; max-width: 64ch; }
+  .note strong { color: var(--ink); font-weight: 600; }
+
+  .grounds { display: flex; gap: var(--s16); flex-wrap: wrap; }
+
+  /* ---- spec table ---- */
+  .spec-wrap { overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; min-width: 460px; font-size: 14px; }
+  th, td { text-align: left; padding: var(--s8) var(--s16) var(--s8) 0; border-bottom: 1px solid var(--rule); }
+  th {
+    font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase;
+    color: var(--ink-faint); font-weight: 400;
+  }
+  td { color: var(--ink-muted); }
+  td:first-child { color: var(--ink); }
+  td.num { font-variant-numeric: tabular-nums; }
+
+  /* ---- homescreen ---- */
+  .homescreen {
+    background: var(--sunken); border-radius: 24px; padding: var(--s32) var(--s24);
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(76px, 1fr));
+    gap: var(--s24) var(--s16); justify-items: center;
+  }
+  .app { display: flex; flex-direction: column; align-items: center; gap: var(--s8); width: 76px; }
+  .app .name { font-size: 11px; color: var(--ink-muted); text-align: center; line-height: 1.3; }
+  .app.ours .name { color: var(--ink); font-weight: 600; }
+  .placeholder {
+    width: 60px; height: 60px; border-radius: 22.5%;
+    background: var(--surface); border: 1px solid var(--rule);
+  }
+
+  /* ---- lockup ---- */
+  .lockup {
+    display: flex; align-items: center; gap: var(--s24); flex-wrap: wrap;
+    padding: var(--s32); background: var(--surface);
+    border: 1px solid var(--rule); border-radius: 16px;
+  }
+  .lockup-type { display: flex; flex-direction: column; gap: var(--s4); }
+  .lockup-gu { font-family: var(--serif); font-size: 40px; line-height: 1.8; margin: 0; }
+  .lockup-la {
+    font-family: var(--serif); font-size: 22px; line-height: 1.3;
+    letter-spacing: 0.02em; color: var(--ink-muted); margin: 0;
+  }
+
+  footer { padding-top: var(--s32); color: var(--ink-faint); font-size: 13px; }
+  footer h2 { color: var(--ink); }
+  footer ul { margin: 0; padding-left: 1.1em; display: flex; flex-direction: column; gap: var(--s8); }
+</style>
+
+<div class="wrap">
+
+  <header class="masthead">
+    <p class="eyebrow">Granthalaya · P0.4 · app icon · direction 1, refined</p>
+    <h1>The chandlo, raised</h1>
+    <p class="standfirst">
+      It was cradled in the curve at <code>cy 55</code>, which read as resting rather than sitting.
+      The mark is now taller and a touch wider, and the chandlo has come up to <code>cy 45</code> —
+      two and a half units <em>above</em> the tilak's optical centre, riding in the open channel
+      between the arms rather than in the cradle.
+    </p>
+  </header>
+
+  <!-- ============ BEFORE / AFTER ============ -->
+  <section>
+    <h2>What changed</h2>
+    <p>
+      Same mark, side by side. The old one is not wrong so much as bottom-heavy — the dot and the
+      cradle merge into a single mass and the arms read as empty.
+    </p>
+    <div class="row">
+      <div class="stack" style="gap: var(--s12); align-items: center;">
+        <svg class="icon" width="180" height="180" viewBox="0 0 100 100" role="img" aria-hidden="true">
+<defs><linearGradient id="r18" x1="0" y1="0" x2="1" y2="1">
+	<stop offset="0" stop-color="#FFFFFF" stop-opacity="0.12"/>
+	<stop offset="0.55" stop-color="#FFFFFF" stop-opacity="0"/>
+	<stop offset="1" stop-color="#000000" stop-opacity="0.14"/>
+</linearGradient></defs>
+<rect width="100" height="100" fill="#23201C"/>
+<path d="M32 20 L32 53 Q32 74 50 74 Q68 74 68 53 L68 20"
+	fill="none" stroke="#E4DACA" stroke-width="11" stroke-linecap="round" stroke-linejoin="round"/><circle cx="50" cy="55" r="10.5" fill="#C4622F"/>
+<rect width="100" height="100" fill="url(#r18)"/>
+</svg>
+        <span class="tag" style="font-size:12px; letter-spacing:0.08em; text-transform:uppercase; color:var(--ink-faint)">Before · cy 55</span>
+      </div>
+      <div class="stack" style="gap: var(--s12); align-items: center;">
+        <svg class="icon" width="180" height="180" viewBox="0 0 100 100" role="img" aria-hidden="true">
+<defs><linearGradient id="r19" x1="0" y1="0" x2="1" y2="1">
+	<stop offset="0" stop-color="#FFFFFF" stop-opacity="0.12"/>
+	<stop offset="0.55" stop-color="#FFFFFF" stop-opacity="0"/>
+	<stop offset="1" stop-color="#000000" stop-opacity="0.14"/>
+</linearGradient></defs>
+<rect width="100" height="100" fill="#23201C"/>
+<path d="M30 18 L30 53.5 Q30 77 50 77 Q70 77 70 53.5 L70 18"
+	fill="none" stroke="#E4DACA" stroke-width="11" stroke-linecap="round" stroke-linejoin="round"/><circle cx="50" cy="45" r="10.5" fill="#C4622F"/>
+<rect width="100" height="100" fill="url(#r19)"/>
+</svg>
+        <span class="tag" style="font-size:12px; letter-spacing:0.08em; text-transform:uppercase; color:var(--accent); font-weight:600">After · cy 45</span>
+      </div>
+      <div class="stack" style="gap: var(--s12); align-items: center;">
+        <svg class="icon" width="180" height="180" viewBox="0 0 100 100" role="img" aria-hidden="true">
+<defs><linearGradient id="r20" x1="0" y1="0" x2="1" y2="1">
+	<stop offset="0" stop-color="#FFFFFF" stop-opacity="0.12"/>
+	<stop offset="0.55" stop-color="#FFFFFF" stop-opacity="0"/>
+	<stop offset="1" stop-color="#000000" stop-opacity="0.14"/>
+</linearGradient></defs>
+<rect width="100" height="100" fill="#23201C"/>
+<path d="M30 18 L30 53.5 Q30 77 50 77 Q70 77 70 53.5 L70 18"
+	fill="none" stroke="#E4DACA" stroke-width="11" stroke-linecap="round" stroke-linejoin="round"/>
+<line x1="12" y1="47.5" x2="88" y2="47.5"
+	stroke="#C4622F" stroke-width="0.9" stroke-dasharray="3 3" opacity="0.85"/>
+<circle cx="50" cy="45" r="10.5" fill="#C4622F"/>
+<line x1="39" y1="47.5" x2="61" y2="47.5"
+	stroke="#23201C" stroke-width="0.9" stroke-dasharray="3 3" opacity="0.55"/>
+<rect width="100" height="100" fill="url(#r20)"/>
+</svg>
+        <span class="tag" style="font-size:12px; letter-spacing:0.08em; text-transform:uppercase; color:var(--ink-faint)">Above the centre</span>
+      </div>
+    </div>
+    <p class="note" style="margin-top: var(--s24);">
+      <strong>The hairline in the third specimen is the tilak's optical centre</strong> — the
+      midpoint of the painted mark, cap to cradle — and it crosses the chandlo <em>below</em> the
+      dot's middle. Raising the dot puts it in the open channel between the arms and leaves a clear
+      band of cloth under it, so the cradle reads as a stroke that turns rather than as a bowl
+      holding something. The mark gets lighter, which is the whole difference.
+    </p>
+  </section>
+
+  <!-- ============ THE PICKER ============ -->
+  <section>
+    <h2>Keep climbing, or stop here?</h2>
+    <p>
+      The dot has moved up three times running, so this range opens <em>upward</em> rather than
+      bracketing the current pick — if 45 is better than 47.5, 43 or 41 may be better still. Each
+      shown large and at 40px on both grounds. Past about 41 the dot starts to detach from the
+      cradle and read as a separate object, which is the failure mode at that end.
+    </p>
+    <div class="options"><div class="option">
+	<svg class="icon" width="150" height="150" viewBox="0 0 100 100" role="img" aria-hidden="true">
+<defs><linearGradient id="r0" x1="0" y1="0" x2="1" y2="1">
+	<stop offset="0" stop-color="#FFFFFF" stop-opacity="0.12"/>
+	<stop offset="0.55" stop-color="#FFFFFF" stop-opacity="0"/>
+	<stop offset="1" stop-color="#000000" stop-opacity="0.14"/>
+</linearGradient></defs>
+<rect width="100" height="100" fill="#23201C"/>
+<path d="M30 18 L30 53.5 Q30 77 50 77 Q70 77 70 53.5 L70 18"
+	fill="none" stroke="#E4DACA" stroke-width="11" stroke-linecap="round" stroke-linejoin="round"/><circle cx="50" cy="41" r="10.5" fill="#C4622F"/>
+<rect width="100" height="100" fill="url(#r0)"/>
+</svg>
+	<div class="small-row"><svg class="icon" width="40" height="40" viewBox="0 0 100 100" role="img" aria-hidden="true">
+<defs><linearGradient id="r1" x1="0" y1="0" x2="1" y2="1">
+	<stop offset="0" stop-color="#FFFFFF" stop-opacity="0.12"/>
+	<stop offset="0.55" stop-color="#FFFFFF" stop-opacity="0"/>
+	<stop offset="1" stop-color="#000000" stop-opacity="0.14"/>
+</linearGradient></defs>
+<rect width="100" height="100" fill="#23201C"/>
+<path d="M30 18 L30 53.5 Q30 77 50 77 Q70 77 70 53.5 L70 18"
+	fill="none" stroke="#E4DACA" stroke-width="11" stroke-linecap="round" stroke-linejoin="round"/><circle cx="50" cy="41" r="10.5" fill="#C4622F"/>
+<rect width="100" height="100" fill="url(#r1)"/>
+</svg><svg class="icon" width="40" height="40" viewBox="0 0 100 100" role="img" aria-hidden="true">
+<defs><linearGradient id="r2" x1="0" y1="0" x2="1" y2="1">
+	<stop offset="0" stop-color="#FFFFFF" stop-opacity="0.12"/>
+	<stop offset="0.55" stop-color="#FFFFFF" stop-opacity="0"/>
+	<stop offset="1" stop-color="#000000" stop-opacity="0.14"/>
+</linearGradient></defs>
+<rect width="100" height="100" fill="#EFE1C6"/>
+<path d="M30 18 L30 53.5 Q30 77 50 77 Q70 77 70 53.5 L70 18"
+	fill="none" stroke="#C08A3E" stroke-width="11" stroke-linecap="round" stroke-linejoin="round"/><circle cx="50" cy="41" r="10.5" fill="#A65328"/>
+<rect width="100" height="100" fill="url(#r2)"/>
+</svg></div>
+	<div class="meta">
+		<span class="tag">cy 41</span>
+		<span class="tag" style="text-transform:none; letter-spacing:0">higher again</span>
+	</div>
+</div>
+<div class="option">
+	<svg class="icon" width="150" height="150" viewBox="0 0 100 100" role="img" aria-hidden="true">
+<defs><linearGradient id="r3" x1="0" y1="0" x2="1" y2="1">
+	<stop offset="0" stop-color="#FFFFFF" stop-opacity="0.12"/>
+	<stop offset="0.55" stop-color="#FFFFFF" stop-opacity="0"/>
+	<stop offset="1" stop-color="#000000" stop-opacity="0.14"/>
+</linearGradient></defs>
+<rect width="100" height="100" fill="#23201C"/>
+<path d="M30 18 L30 53.5 Q30 77 50 77 Q70 77 70 53.5 L70 18"
+	fill="none" stroke="#E4DACA" stroke-width="11" stroke-linecap="round" stroke-linejoin="round"/><circle cx="50" cy="43" r="10.5" fill="#C4622F"/>
+<rect width="100" height="100" fill="url(#r3)"/>
+</svg>
+	<div class="small-row"><svg class="icon" width="40" height="40" viewBox="0 0 100 100" role="img" aria-hidden="true">
+<defs><linearGradient id="r4" x1="0" y1="0" x2="1" y2="1">
+	<stop offset="0" stop-color="#FFFFFF" stop-opacity="0.12"/>
+	<stop offset="0.55" stop-color="#FFFFFF" stop-opacity="0"/>
+	<stop offset="1" stop-color="#000000" stop-opacity="0.14"/>
+</linearGradient></defs>
+<rect width="100" height="100" fill="#23201C"/>
+<path d="M30 18 L30 53.5 Q30 77 50 77 Q70 77 70 53.5 L70 18"
+	fill="none" stroke="#E4DACA" stroke-width="11" stroke-linecap="round" stroke-linejoin="round"/><circle cx="50" cy="43" r="10.5" fill="#C4622F"/>
+<rect width="100" height="100" fill="url(#r4)"/>
+</svg><svg class="icon" width="40" height="40" viewBox="0 0 100 100" role="img" aria-hidden="true">
+<defs><linearGradient id="r5" x1="0" y1="0" x2="1" y2="1">
+	<stop offset="0" stop-color="#FFFFFF" stop-opacity="0.12"/>
+	<stop offset="0.55" stop-color="#FFFFFF" stop-opacity="0"/>
+	<stop offset="1" stop-color="#000000" stop-opacity="0.14"/>
+</linearGradient></defs>
+<rect width="100" height="100" fill="#EFE1C6"/>
+<path d="M30 18 L30 53.5 Q30 77 50 77 Q70 77 70 53.5 L70 18"
+	fill="none" stroke="#C08A3E" stroke-width="11" stroke-linecap="round" stroke-linejoin="round"/><circle cx="50" cy="43" r="10.5" fill="#A65328"/>
+<rect width="100" height="100" fill="url(#r5)"/>
+</svg></div>
+	<div class="meta">
+		<span class="tag">cy 43</span>
+		<span class="tag" style="text-transform:none; letter-spacing:0">higher</span>
+	</div>
+</div>
+<div class="option pick">
+	<svg class="icon" width="150" height="150" viewBox="0 0 100 100" role="img" aria-hidden="true">
+<defs><linearGradient id="r6" x1="0" y1="0" x2="1" y2="1">
+	<stop offset="0" stop-color="#FFFFFF" stop-opacity="0.12"/>
+	<stop offset="0.55" stop-color="#FFFFFF" stop-opacity="0"/>
+	<stop offset="1" stop-color="#000000" stop-opacity="0.14"/>
+</linearGradient></defs>
+<rect width="100" height="100" fill="#23201C"/>
+<path d="M30 18 L30 53.5 Q30 77 50 77 Q70 77 70 53.5 L70 18"
+	fill="none" stroke="#E4DACA" stroke-width="11" stroke-linecap="round" stroke-linejoin="round"/><circle cx="50" cy="45" r="10.5" fill="#C4622F"/>
+<rect width="100" height="100" fill="url(#r6)"/>
+</svg>
+	<div class="small-row"><svg class="icon" width="40" height="40" viewBox="0 0 100 100" role="img" aria-hidden="true">
+<defs><linearGradient id="r7" x1="0" y1="0" x2="1" y2="1">
+	<stop offset="0" stop-color="#FFFFFF" stop-opacity="0.12"/>
+	<stop offset="0.55" stop-color="#FFFFFF" stop-opacity="0"/>
+	<stop offset="1" stop-color="#000000" stop-opacity="0.14"/>
+</linearGradient></defs>
+<rect width="100" height="100" fill="#23201C"/>
+<path d="M30 18 L30 53.5 Q30 77 50 77 Q70 77 70 53.5 L70 18"
+	fill="none" stroke="#E4DACA" stroke-width="11" stroke-linecap="round" stroke-linejoin="round"/><circle cx="50" cy="45" r="10.5" fill="#C4622F"/>
+<rect width="100" height="100" fill="url(#r7)"/>
+</svg><svg class="icon" width="40" height="40" viewBox="0 0 100 100" role="img" aria-hidden="true">
+<defs><linearGradient id="r8" x1="0" y1="0" x2="1" y2="1">
+	<stop offset="0" stop-color="#FFFFFF" stop-opacity="0.12"/>
+	<stop offset="0.55" stop-color="#FFFFFF" stop-opacity="0"/>
+	<stop offset="1" stop-color="#000000" stop-opacity="0.14"/>
+</linearGradient></defs>
+<rect width="100" height="100" fill="#EFE1C6"/>
+<path d="M30 18 L30 53.5 Q30 77 50 77 Q70 77 70 53.5 L70 18"
+	fill="none" stroke="#C08A3E" stroke-width="11" stroke-linecap="round" stroke-linejoin="round"/><circle cx="50" cy="45" r="10.5" fill="#A65328"/>
+<rect width="100" height="100" fill="url(#r8)"/>
+</svg></div>
+	<div class="meta">
+		<span class="tag">cy 45</span>
+		<span class="tag" style="text-transform:none; letter-spacing:0">chosen</span>
+	</div>
+</div>
+<div class="option">
+	<svg class="icon" width="150" height="150" viewBox="0 0 100 100" role="img" aria-hidden="true">
+<defs><linearGradient id="r9" x1="0" y1="0" x2="1" y2="1">
+	<stop offset="0" stop-color="#FFFFFF" stop-opacity="0.12"/>
+	<stop offset="0.55" stop-color="#FFFFFF" stop-opacity="0"/>
+	<stop offset="1" stop-color="#000000" stop-opacity="0.14"/>
+</linearGradient></defs>
+<rect width="100" height="100" fill="#23201C"/>
+<path d="M30 18 L30 53.5 Q30 77 50 77 Q70 77 70 53.5 L70 18"
+	fill="none" stroke="#E4DACA" stroke-width="11" stroke-linecap="round" stroke-linejoin="round"/><circle cx="50" cy="47.5" r="10.5" fill="#C4622F"/>
+<rect width="100" height="100" fill="url(#r9)"/>
+</svg>
+	<div class="small-row"><svg class="icon" width="40" height="40" viewBox="0 0 100 100" role="img" aria-hidden="true">
+<defs><linearGradient id="r10" x1="0" y1="0" x2="1" y2="1">
+	<stop offset="0" stop-color="#FFFFFF" stop-opacity="0.12"/>
+	<stop offset="0.55" stop-color="#FFFFFF" stop-opacity="0"/>
+	<stop offset="1" stop-color="#000000" stop-opacity="0.14"/>
+</linearGradient></defs>
+<rect width="100" height="100" fill="#23201C"/>
+<path d="M30 18 L30 53.5 Q30 77 50 77 Q70 77 70 53.5 L70 18"
+	fill="none" stroke="#E4DACA" stroke-width="11" stroke-linecap="round" stroke-linejoin="round"/><circle cx="50" cy="47.5" r="10.5" fill="#C4622F"/>
+<rect width="100" height="100" fill="url(#r10)"/>
+</svg><svg class="icon" width="40" height="40" viewBox="0 0 100 100" role="img" aria-hidden="true">
+<defs><linearGradient id="r11" x1="0" y1="0" x2="1" y2="1">
+	<stop offset="0" stop-color="#FFFFFF" stop-opacity="0.12"/>
+	<stop offset="0.55" stop-color="#FFFFFF" stop-opacity="0"/>
+	<stop offset="1" stop-color="#000000" stop-opacity="0.14"/>
+</linearGradient></defs>
+<rect width="100" height="100" fill="#EFE1C6"/>
+<path d="M30 18 L30 53.5 Q30 77 50 77 Q70 77 70 53.5 L70 18"
+	fill="none" stroke="#C08A3E" stroke-width="11" stroke-linecap="round" stroke-linejoin="round"/><circle cx="50" cy="47.5" r="10.5" fill="#A65328"/>
+<rect width="100" height="100" fill="url(#r11)"/>
+</svg></div>
+	<div class="meta">
+		<span class="tag">cy 47.5</span>
+		<span class="tag" style="text-transform:none; letter-spacing:0">dead centre</span>
+	</div>
+</div></div>
+  </section>
+
+  <!-- ============ LADDER ============ -->
+  <section>
+    <h2>It still holds all the way down</h2>
+    <p>
+      Moving the chandlo cost nothing at size — it gained, in fact, because the dot is now surrounded
+      by cloth on all sides rather than fusing with the cradle at the bottom.
+    </p>
+    <div class="stack">
+      <div class="ladder"><div class="rung"><svg class="icon" width="128" height="128" viewBox="0 0 100 100" role="img" aria-hidden="true">
+<defs><linearGradient id="r12" x1="0" y1="0" x2="1" y2="1">
+	<stop offset="0" stop-color="#FFFFFF" stop-opacity="0.12"/>
+	<stop offset="0.55" stop-color="#FFFFFF" stop-opacity="0"/>
+	<stop offset="1" stop-color="#000000" stop-opacity="0.14"/>
+</linearGradient></defs>
+<rect width="100" height="100" fill="#23201C"/>
+<path d="M30 18 L30 53.5 Q30 77 50 77 Q70 77 70 53.5 L70 18"
+	fill="none" stroke="#E4DACA" stroke-width="11" stroke-linecap="round" stroke-linejoin="round"/><circle cx="50" cy="45" r="10.5" fill="#C4622F"/>
+<rect width="100" height="100" fill="url(#r12)"/>
+</svg><span class="px">128</span></div>
+<div class="rung"><svg class="icon" width="96" height="96" viewBox="0 0 100 100" role="img" aria-hidden="true">
+<defs><linearGradient id="r13" x1="0" y1="0" x2="1" y2="1">
+	<stop offset="0" stop-color="#FFFFFF" stop-opacity="0.12"/>
+	<stop offset="0.55" stop-color="#FFFFFF" stop-opacity="0"/>
+	<stop offset="1" stop-color="#000000" stop-opacity="0.14"/>
+</linearGradient></defs>
+<rect width="100" height="100" fill="#23201C"/>
+<path d="M30 18 L30 53.5 Q30 77 50 77 Q70 77 70 53.5 L70 18"
+	fill="none" stroke="#E4DACA" stroke-width="11" stroke-linecap="round" stroke-linejoin="round"/><circle cx="50" cy="45" r="10.5" fill="#C4622F"/>
+<rect width="100" height="100" fill="url(#r13)"/>
+</svg><span class="px">96</span></div>
+<div class="rung"><svg class="icon" width="64" height="64" viewBox="0 0 100 100" role="img" aria-hidden="true">
+<defs><linearGradient id="r14" x1="0" y1="0" x2="1" y2="1">
+	<stop offset="0" stop-color="#FFFFFF" stop-opacity="0.12"/>
+	<stop offset="0.55" stop-color="#FFFFFF" stop-opacity="0"/>
+	<stop offset="1" stop-color="#000000" stop-opacity="0.14"/>
+</linearGradient></defs>
+<rect width="100" height="100" fill="#23201C"/>
+<path d="M30 18 L30 53.5 Q30 77 50 77 Q70 77 70 53.5 L70 18"
+	fill="none" stroke="#E4DACA" stroke-width="11" stroke-linecap="round" stroke-linejoin="round"/><circle cx="50" cy="45" r="10.5" fill="#C4622F"/>
+<rect width="100" height="100" fill="url(#r14)"/>
+</svg><span class="px">64</span></div>
+<div class="rung"><svg class="icon" width="48" height="48" viewBox="0 0 100 100" role="img" aria-hidden="true">
+<defs><linearGradient id="r15" x1="0" y1="0" x2="1" y2="1">
+	<stop offset="0" stop-color="#FFFFFF" stop-opacity="0.12"/>
+	<stop offset="0.55" stop-color="#FFFFFF" stop-opacity="0"/>
+	<stop offset="1" stop-color="#000000" stop-opacity="0.14"/>
+</linearGradient></defs>
+<rect width="100" height="100" fill="#23201C"/>
+<path d="M30 18 L30 53.5 Q30 77 50 77 Q70 77 70 53.5 L70 18"
+	fill="none" stroke="#E4DACA" stroke-width="11" stroke-linecap="round" stroke-linejoin="round"/><circle cx="50" cy="45" r="10.5" fill="#C4622F"/>
+<rect width="100" height="100" fill="url(#r15)"/>
+</svg><span class="px">48</span></div>
+<div class="rung"><svg class="icon" width="32" height="32" viewBox="0 0 100 100" role="img" aria-hidden="true">
+<defs><linearGradient id="r16" x1="0" y1="0" x2="1" y2="1">
+	<stop offset="0" stop-color="#FFFFFF" stop-opacity="0.12"/>
+	<stop offset="0.55" stop-color="#FFFFFF" stop-opacity="0"/>
+	<stop offset="1" stop-color="#000000" stop-opacity="0.14"/>
+</linearGradient></defs>
+<rect width="100" height="100" fill="#23201C"/>
+<path d="M30 18 L30 53.5 Q30 77 50 77 Q70 77 70 53.5 L70 18"
+	fill="none" stroke="#E4DACA" stroke-width="11" stroke-linecap="round" stroke-linejoin="round"/><circle cx="50" cy="45" r="10.5" fill="#C4622F"/>
+<rect width="100" height="100" fill="url(#r16)"/>
+</svg><span class="px">32</span></div>
+<div class="rung"><svg class="icon" width="24" height="24" viewBox="0 0 100 100" role="img" aria-hidden="true">
+<defs><linearGradient id="r17" x1="0" y1="0" x2="1" y2="1">
+	<stop offset="0" stop-color="#FFFFFF" stop-opacity="0.12"/>
+	<stop offset="0.55" stop-color="#FFFFFF" stop-opacity="0"/>
+	<stop offset="1" stop-color="#000000" stop-opacity="0.14"/>
+</linearGradient></defs>
+<rect width="100" height="100" fill="#23201C"/>
+<path d="M30 18 L30 53.5 Q30 77 50 77 Q70 77 70 53.5 L70 18"
+	fill="none" stroke="#E4DACA" stroke-width="11" stroke-linecap="round" stroke-linejoin="round"/><circle cx="50" cy="45" r="10.5" fill="#C4622F"/>
+<rect width="100" height="100" fill="url(#r17)"/>
+</svg><span class="px">24</span></div></div>
+      <p class="note">
+        <strong>24px is still unmistakably itself.</strong> The separation between dot and cradle is
+        the last thing to go, and it survives to 32.
+      </p>
+    </div>
+  </section>
+
+  <!-- ============ GROUNDS ============ -->
+  <section>
+    <h2>On every cloth</h2>
+    <p>
+      The two candidate grounds first — the <code>ink</code> cloth and the sandalwood — then the mark
+      checked against the rest of <code>COVER_COLOURWAYS</code>, since a generated cover may sit next
+      to it in the library grid.
+    </p>
+    <div class="stack">
+      <div class="row" style="align-items: flex-end;"><svg class="icon" width="200" height="200" viewBox="0 0 100 100" role="img" aria-hidden="true">
+<defs><linearGradient id="r21" x1="0" y1="0" x2="1" y2="1">
+	<stop offset="0" stop-color="#FFFFFF" stop-opacity="0.12"/>
+	<stop offset="0.55" stop-color="#FFFFFF" stop-opacity="0"/>
+	<stop offset="1" stop-color="#000000" stop-opacity="0.14"/>
+</linearGradient></defs>
+<rect width="100" height="100" fill="#23201C"/>
+<path d="M30 18 L30 53.5 Q30 77 50 77 Q70 77 70 53.5 L70 18"
+	fill="none" stroke="#E4DACA" stroke-width="11" stroke-linecap="round" stroke-linejoin="round"/><circle cx="50" cy="45" r="10.5" fill="#C4622F"/>
+<rect width="100" height="100" fill="url(#r21)"/>
+</svg><svg class="icon" width="200" height="200" viewBox="0 0 100 100" role="img" aria-hidden="true">
+<defs><linearGradient id="r22" x1="0" y1="0" x2="1" y2="1">
+	<stop offset="0" stop-color="#FFFFFF" stop-opacity="0.12"/>
+	<stop offset="0.55" stop-color="#FFFFFF" stop-opacity="0"/>
+	<stop offset="1" stop-color="#000000" stop-opacity="0.14"/>
+</linearGradient></defs>
+<rect width="100" height="100" fill="#EFE1C6"/>
+<path d="M30 18 L30 53.5 Q30 77 50 77 Q70 77 70 53.5 L70 18"
+	fill="none" stroke="#C08A3E" stroke-width="11" stroke-linecap="round" stroke-linejoin="round"/><circle cx="50" cy="45" r="10.5" fill="#A65328"/>
+<rect width="100" height="100" fill="url(#r22)"/>
+</svg></div>
+      <p class="kicker" style="margin: var(--s16) 0 0;">The rest of the shelf</p>
+      <div class="grounds"><svg class="icon" width="64" height="64" viewBox="0 0 100 100" role="img" aria-hidden="true">
+<defs><linearGradient id="r23" x1="0" y1="0" x2="1" y2="1">
+	<stop offset="0" stop-color="#FFFFFF" stop-opacity="0.12"/>
+	<stop offset="0.55" stop-color="#FFFFFF" stop-opacity="0"/>
+	<stop offset="1" stop-color="#000000" stop-opacity="0.14"/>
+</linearGradient></defs>
+<rect width="100" height="100" fill="#2E3B5E"/>
+<path d="M30 18 L30 53.5 Q30 77 50 77 Q70 77 70 53.5 L70 18"
+	fill="none" stroke="#EDE3D2" stroke-width="11" stroke-linecap="round" stroke-linejoin="round"/><circle cx="50" cy="45" r="10.5" fill="#D98A52"/>
+<rect width="100" height="100" fill="url(#r23)"/>
+</svg>
+<svg class="icon" width="64" height="64" viewBox="0 0 100 100" role="img" aria-hidden="true">
+<defs><linearGradient id="r24" x1="0" y1="0" x2="1" y2="1">
+	<stop offset="0" stop-color="#FFFFFF" stop-opacity="0.12"/>
+	<stop offset="0.55" stop-color="#FFFFFF" stop-opacity="0"/>
+	<stop offset="1" stop-color="#000000" stop-opacity="0.14"/>
+</linearGradient></defs>
+<rect width="100" height="100" fill="#8A4126"/>
+<path d="M30 18 L30 53.5 Q30 77 50 77 Q70 77 70 53.5 L70 18"
+	fill="none" stroke="#F7E8D8" stroke-width="11" stroke-linecap="round" stroke-linejoin="round"/><circle cx="50" cy="45" r="10.5" fill="#3B2016"/>
+<rect width="100" height="100" fill="url(#r24)"/>
+</svg>
+<svg class="icon" width="64" height="64" viewBox="0 0 100 100" role="img" aria-hidden="true">
+<defs><linearGradient id="r25" x1="0" y1="0" x2="1" y2="1">
+	<stop offset="0" stop-color="#FFFFFF" stop-opacity="0.12"/>
+	<stop offset="0.55" stop-color="#FFFFFF" stop-opacity="0"/>
+	<stop offset="1" stop-color="#000000" stop-opacity="0.14"/>
+</linearGradient></defs>
+<rect width="100" height="100" fill="#3F5740"/>
+<path d="M30 18 L30 53.5 Q30 77 50 77 Q70 77 70 53.5 L70 18"
+	fill="none" stroke="#E9EFDE" stroke-width="11" stroke-linecap="round" stroke-linejoin="round"/><circle cx="50" cy="45" r="10.5" fill="#D98A52"/>
+<rect width="100" height="100" fill="url(#r25)"/>
+</svg>
+<svg class="icon" width="64" height="64" viewBox="0 0 100 100" role="img" aria-hidden="true">
+<defs><linearGradient id="r26" x1="0" y1="0" x2="1" y2="1">
+	<stop offset="0" stop-color="#FFFFFF" stop-opacity="0.12"/>
+	<stop offset="0.55" stop-color="#FFFFFF" stop-opacity="0"/>
+	<stop offset="1" stop-color="#000000" stop-opacity="0.14"/>
+</linearGradient></defs>
+<rect width="100" height="100" fill="#4A2E49"/>
+<path d="M30 18 L30 53.5 Q30 77 50 77 Q70 77 70 53.5 L70 18"
+	fill="none" stroke="#F1E2ED" stroke-width="11" stroke-linecap="round" stroke-linejoin="round"/><circle cx="50" cy="45" r="10.5" fill="#D98A52"/>
+<rect width="100" height="100" fill="url(#r26)"/>
+</svg>
+<svg class="icon" width="64" height="64" viewBox="0 0 100 100" role="img" aria-hidden="true">
+<defs><linearGradient id="r27" x1="0" y1="0" x2="1" y2="1">
+	<stop offset="0" stop-color="#FFFFFF" stop-opacity="0.12"/>
+	<stop offset="0.55" stop-color="#FFFFFF" stop-opacity="0"/>
+	<stop offset="1" stop-color="#000000" stop-opacity="0.14"/>
+</linearGradient></defs>
+<rect width="100" height="100" fill="#715211"/>
+<path d="M30 18 L30 53.5 Q30 77 50 77 Q70 77 70 53.5 L70 18"
+	fill="none" stroke="#F8ECD3" stroke-width="11" stroke-linecap="round" stroke-linejoin="round"/><circle cx="50" cy="45" r="10.5" fill="#3B2A08"/>
+<rect width="100" height="100" fill="url(#r27)"/>
+</svg>
+<svg class="icon" width="64" height="64" viewBox="0 0 100 100" role="img" aria-hidden="true">
+<defs><linearGradient id="r28" x1="0" y1="0" x2="1" y2="1">
+	<stop offset="0" stop-color="#FFFFFF" stop-opacity="0.12"/>
+	<stop offset="0.55" stop-color="#FFFFFF" stop-opacity="0"/>
+	<stop offset="1" stop-color="#000000" stop-opacity="0.14"/>
+</linearGradient></defs>
+<rect width="100" height="100" fill="#23201C"/>
+<path d="M30 18 L30 53.5 Q30 77 50 77 Q70 77 70 53.5 L70 18"
+	fill="none" stroke="#E4DACA" stroke-width="11" stroke-linecap="round" stroke-linejoin="round"/><circle cx="50" cy="45" r="10.5" fill="#C4622F"/>
+<rect width="100" height="100" fill="url(#r28)"/>
+</svg></div>
+    </div>
+  </section>
+
+  <!-- ============ SPEC ============ -->
+  <section>
+    <h2>The geometry, so it can be drawn once</h2>
+    <p>
+      All values on a 100 × 100 artboard. Hand this to whoever cuts the production vector, or keep it
+      as the reference the exported asset is checked against.
+    </p>
+    <div class="spec-wrap">
+      <table>
+        <thead>
+          <tr><th>Element</th><th>Value</th><th>Note</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Tilak arms</td><td class="num">x 30 and 70</td><td>Outer stroke centres</td></tr>
+          <tr><td>Stroke width</td><td class="num">11</td><td>Round cap and join</td></tr>
+          <tr><td>Arm top</td><td class="num">y 18</td><td>Paint starts at 12.5 with the cap</td></tr>
+          <tr><td>Cradle bottom</td><td class="num">y 77</td><td>Paint ends at 82.5</td></tr>
+          <tr><td>Optical centre</td><td class="num">y 47.5</td><td>Midpoint of the painted mark</td></tr>
+          <tr><td>Chandlo</td><td class="num">cy 45, r 10.5</td><td>2.5 above centre</td></tr>
+          <tr><td>Inner clearance</td><td class="num">4 each side</td><td>Dot to arm inner edge</td></tr>
+          <tr><td>Chandan</td><td class="num">#E4DACA</td><td><code>COVER_COLOURWAYS</code> ink</td></tr>
+          <tr><td>Kumkum</td><td class="num">#A65328</td><td>The accent; <code>#C4622F</code> on dark cloth</td></tr>
+          <tr><td>Cloth</td><td class="num">#23201C</td><td>The <code>ink</code> colourway base</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ============ HOME SCREEN ============ -->
+  <section>
+    <h2>In the grid</h2>
+    <p>Both grounds at 60px, next to neighbours that are not competing for attention.</p>
+    <div class="homescreen">
+      <div class="app ours"><svg class="icon" width="60" height="60" viewBox="0 0 100 100" role="img" aria-hidden="true">
+<defs><linearGradient id="r29" x1="0" y1="0" x2="1" y2="1">
+	<stop offset="0" stop-color="#FFFFFF" stop-opacity="0.12"/>
+	<stop offset="0.55" stop-color="#FFFFFF" stop-opacity="0"/>
+	<stop offset="1" stop-color="#000000" stop-opacity="0.14"/>
+</linearGradient></defs>
+<rect width="100" height="100" fill="#23201C"/>
+<path d="M30 18 L30 53.5 Q30 77 50 77 Q70 77 70 53.5 L70 18"
+	fill="none" stroke="#E4DACA" stroke-width="11" stroke-linecap="round" stroke-linejoin="round"/><circle cx="50" cy="45" r="10.5" fill="#C4622F"/>
+<rect width="100" height="100" fill="url(#r29)"/>
+</svg><span class="name">Granthalaya</span></div>
+      <div class="app ours"><svg class="icon" width="60" height="60" viewBox="0 0 100 100" role="img" aria-hidden="true">
+<defs><linearGradient id="r30" x1="0" y1="0" x2="1" y2="1">
+	<stop offset="0" stop-color="#FFFFFF" stop-opacity="0.12"/>
+	<stop offset="0.55" stop-color="#FFFFFF" stop-opacity="0"/>
+	<stop offset="1" stop-color="#000000" stop-opacity="0.14"/>
+</linearGradient></defs>
+<rect width="100" height="100" fill="#EFE1C6"/>
+<path d="M30 18 L30 53.5 Q30 77 50 77 Q70 77 70 53.5 L70 18"
+	fill="none" stroke="#C08A3E" stroke-width="11" stroke-linecap="round" stroke-linejoin="round"/><circle cx="50" cy="45" r="10.5" fill="#A65328"/>
+<rect width="100" height="100" fill="url(#r30)"/>
+</svg><span class="name">Granthalaya</span></div>
+      <div class="app"><div class="placeholder"></div><span class="name">—</span></div>
+      <div class="app"><div class="placeholder"></div><span class="name">—</span></div>
+      <div class="app"><div class="placeholder"></div><span class="name">—</span></div>
+    </div>
+  </section>
+
+  <!-- ============ LOCKUP ============ -->
+  <section>
+    <h2>The lockup</h2>
+    <p>
+      Gujarati leads because the reader does. Leading is 1.8 per P0.3, and no tracking on the
+      Gujarati line — the mark is optically centred on the ગ્રંથાલય line rather than on the pair,
+      so the two halves read as set rather than stacked.
+    </p>
+    <div class="lockup">
+      <svg class="icon" width="72" height="72" viewBox="0 0 100 100" role="img" aria-hidden="true">
+<defs><linearGradient id="r31" x1="0" y1="0" x2="1" y2="1">
+	<stop offset="0" stop-color="#FFFFFF" stop-opacity="0.12"/>
+	<stop offset="0.55" stop-color="#FFFFFF" stop-opacity="0"/>
+	<stop offset="1" stop-color="#000000" stop-opacity="0.14"/>
+</linearGradient></defs>
+<rect width="100" height="100" fill="#23201C"/>
+<path d="M30 18 L30 53.5 Q30 77 50 77 Q70 77 70 53.5 L70 18"
+	fill="none" stroke="#E4DACA" stroke-width="11" stroke-linecap="round" stroke-linejoin="round"/><circle cx="50" cy="45" r="10.5" fill="#C4622F"/>
+<rect width="100" height="100" fill="url(#r31)"/>
+</svg>
+      <div class="lockup-type">
+        <p class="lockup-gu">ગ્રંથાલય</p>
+        <p class="lockup-la">Granthalaya</p>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <h2>Still outstanding</h2>
+    <ul>
+      <li>
+        <b>Trace it from a real reference.</b> This is my geometry, and the arm taper is the detail a
+        satsangi reads as right or wrong. Worth putting in front of someone in your sabha before it
+        ships, even though nobody is likely to object to a plain tilak-chandlo.
+      </li>
+      <li>
+        <b>Pick a ground.</b> The dark cloth is more distinctive in a grid; the sandalwood is warmer
+        and closer to chandan on skin. I lean dark, but it is genuinely a taste call.
+      </li>
+      <li>
+        <b>Then production.</b> Path outlines rather than live text, a true iOS superellipse instead
+        of the CSS <code>22.5%</code> here, and the mark inside Android's adaptive-icon safe zone with
+        the cloth as the background layer. That closes P0.4 — <code>ROADMAP.md:169</code>.
+      </li>
+    </ul>
+  </footer>
+
+</div>

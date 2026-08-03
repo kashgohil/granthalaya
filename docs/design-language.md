@@ -179,7 +179,50 @@ screen is where a reading app either explains itself or feels broken.
 
 ---
 
-## 7. Sharing with the web
+## 7. The identity mark
+
+The **tilak-chandlo**: the U of chandan with the kumkum chandlo inside it. The books this
+library carries are almost all Swaminarayan Sampradaya, and the sampradaya has had a mark
+for two centuries — one that every denomination shares, so it identifies the library
+without taking a side between Vadtal, Ahmedabad, BAPS or Maninagar.
+
+It was chosen over the obvious alternative — a book — for the reason the rest of this
+document keeps arriving at: *the product is already a book*, so an icon that says "book"
+restates the container instead of naming the contents. A book icon is also the single most
+crowded shape in the category, and its bulk is the first thing to die at 48px.
+
+It costs the language **no new colour**. `themes.ts` already describes the accent as "the
+colour of kumkum"; the chandan is the ink of the `ink` colourway in `cover.ts`. The mark is
+those two values on that cloth, which `mark.test.ts` asserts so the claim cannot quietly
+stop being true.
+
+| | |
+|---|---|
+| Arms | `x 30` / `x 70`, stroke `11`, round cap and join |
+| Vertical | `y 18` to `y 77`, painting `12.5`–`82.5` after the caps |
+| Chandlo | `cy 45`, `r 10.5` — **above** the optical centre of `47.5` |
+| Chandan | `#E4DACA` · Kumkum `#A65328`, lifted to `#C4622F` on dark cloth |
+
+The chandlo sitting *above* centre is the one number that took real work. The usual reason
+to drop a dot below centre is that a closed lower form outweighs open upper strokes — but
+the round caps topping these arms carry enough weight to cancel that, and raising the dot
+into the open channel between the arms leaves a clear band of cloth beneath it, so the
+cradle reads as a stroke that turns rather than a bowl holding something. There is a test
+guarding it; read that before "fixing" the centring.
+
+`bun run icons:sync` rasterises the mark into every platform asset — iOS light/dark/tinted,
+the three Android adaptive layers, splash, favicons, PWA and maskable icons. Pixels come
+from a signed-distance field in `scripts/rasterise.ts` rather than from a rasterised SVG,
+so there is no native binary or headless browser between a fresh checkout and a build, and
+the output is byte-deterministic enough to review as a diff. `docs/brand/icon-directions.html`
+is the design record: the alternatives, the size ladders, and where each one failed.
+
+Still open: the arm taper is drawn from geometry rather than traced from a reference, and
+it is the detail a satsangi reads as right or wrong.
+
+---
+
+## 8. Sharing with the web
 
 `packages/core/src/design/` is platform-neutral data. React Native reads it directly. A
 browser cannot, so `bun run design:sync` emits `apps/web/src/styles/tokens.css` — every
@@ -194,10 +237,12 @@ a token change is checked before it ships.
 
 ---
 
-## 8. What is not decided yet
+## 9. What is not decided yet
 
-- **The app icon and the wordmark.** The shell still ships Expo's placeholder icon; only the
-  splash and the adaptive-icon background are ours. Store assets are P8.2.
+- **The wordmark.** The mark is done (§7); `ગ્રંથાલય` is not. A real wordmark needs the Rasa
+  glyphs converted to outlines, which needs a font toolchain this repo does not carry — so
+  it is set live in Rasa 400 for now, with no tracking on the Gujarati line. Store assets
+  are P8.2.
 - **A second UI face.** Mukta Vaani stays documented as Noto Sans Gujarati's substitute and
   unbundled (P0.3's decision).
 - **Localized chrome.** Gujarati UI strings need a localization slice; none exists.
