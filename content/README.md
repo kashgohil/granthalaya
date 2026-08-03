@@ -11,10 +11,15 @@ has no use for. What gets committed is the *inventory about* them — `docs/pdf-
 content/
   source/     # the PDFs you drop in, one folder per book or edition
   pages/      # rendered page images, one folder per book + a pages.json manifest
-  draft/      # P1.2: draft book packages, before proofing
+  ocr/        # what the OCR read back, per page, with its layout blocks
+  books/      # draft packages: book.json + assembly.json, as `assemble` wrote them
+    <book>/proofed/   # versioned packages the studio exported, once a human has read them
 ```
 
-`draft/` arrives with the rest of P1.2.
+The studio (P1.3) only ever *reads* `books/<book>/book.json` — the editable copy of a book being
+proofed lives in Postgres, so the draft on disk stays exactly as the machine wrote it and a
+re-import always has something honest to diff against. `proofed/` is what export writes, and a
+version there is written once: a correction is a new `contentVersion`, never an edit.
 
 ## Putting a PDF in
 

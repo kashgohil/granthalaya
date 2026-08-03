@@ -32,7 +32,7 @@ cp apps/api/.env.example    apps/api/.env
 cp apps/web/.env.example    apps/web/.env
 cp apps/mobile/.env.example apps/mobile/.env
 
-bun run dev             # api (:3001) + web (:3000)
+bun run dev             # api (:4567) + web (:4568)
 bun run dev:mobile      # expo start
 ```
 

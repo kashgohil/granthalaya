@@ -14,6 +14,7 @@ slice checkboxes/status markers updated as work lands.
 | `apps/api` | Elysia (Bun) API — auth, book catalog/distribution, sync, TTS proxy (scaffolded in P0.1) | All clients, via typed Eden client |
 | `packages/core` | Platform-pure TS domain: book format/Zod schemas, verse addressing, SRS, quiz engine. Zod is its only dependency; shared by mobile, web, api | — |
 | `packages/pipeline` | Internal CLI tooling: PDF triage, OCR, normalization, packaging. Never user-facing | Admin |
+| `packages/db` | Postgres schema + Drizzle client for the admin studio's editable state. Consumed only by `apps/api` | Admin |
 
 The content flow: PDFs → `packages/pipeline` + admin studio (web) → published packages served
 by `apps/api` → installed offline in `apps/mobile`.
@@ -37,22 +38,26 @@ bun run check            # biome lint + format, whole repo (--write via check:fi
 bun run typecheck        # tsc --noEmit in every workspace
 bun test                 # bun:test across every workspace
 
-bun run dev              # api (:3001) + web (:3000) together
+bun run dev              # api (:4567) + web (:4568) together
 bun run dev:api / dev:web / dev:mobile
 bun run validate <path>  # check a book package against docs/book-format.md
 bun run triage <path>    # inventory a folder of PDFs, pick an extraction strategy per file
 bun run render <pdf>     # render a book's pages to images for OCR and proofing (resumable)
 bun run ocr <pages-dir>  # read those pages with Sarvam Vision (needs SARVAM_API_KEY; costs money)
 bun run assemble <ocr-dir>  # turn that text into a draft book package + proofing queue (free, re-runnable)
+bun run admin:password   # mint ADMIN_PASSWORD_HASH + COOKIE_SECRET for the studio (paste into apps/api/.env)
+bun run db:generate      # regenerate migrations after editing packages/db/src/schema.ts
+bun run db:migrate       # apply them (the API also does this at startup)
+bun run db:studio        # drizzle-kit's database browser
 bun run fonts:sync       # re-download the Gujarati font stack into both apps (output is committed)
 bun run design:sync      # regenerate the paper-grain tile + apps/web tokens.css from packages/core/src/design
 
 # apps/api (run from apps/api)
-bun run dev              # Elysia on :3001, watch mode
+bun run dev              # Elysia on :4567, watch mode
 bun run start            # run once
 
 # apps/web (run from apps/web)
-bun run dev              # Vite dev server on :3000
+bun run dev              # Vite dev server on :4568
 bun run build            # production build
 bun run generate-routes  # regenerate TanStack Router route tree
 
@@ -110,6 +115,11 @@ next to the code as `*.test.ts`.
 ### packages/*
 - `packages/core` stays platform-pure: no React, no Bun/Node APIs, no I/O — types, schemas, and pure logic only, fully unit-tested with `bun test`
 - `packages/pipeline` may use anything optimal per step (Bun APIs, external OCR services)
+- `packages/db` owns the studio's Postgres schema (Drizzle). Migrations are **generated SQL,
+  committed and applied in order** — never `db:push`: these tables hold human proofing that exists
+  nowhere else. Runtime uses `Bun.SQL`; tests use PGlite (`@granthalaya/db/testing`) so `bun test`
+  passes with no database server running. Services take the driver-agnostic `Db` type, which is
+  what makes that substitution sound
 
 ## Domain rules (non-negotiable)
 
@@ -138,3 +148,7 @@ next to the code as `*.test.ts`.
   `bun run design:sync`.
 - **Local-first mobile:** reading, annotations, and study must work fully offline; the API is
   for sync and distribution, not for rendering the reading path.
+- **The studio never edits a package in place.** `content/books/<id>/book.json` is what `assemble`
+  wrote; the editable copy is Postgres, and export re-derives a package from it. That is what makes
+  re-running `assemble` safe. A re-import replaces a row nobody has touched and never overwrites
+  one somebody has — and deletes nothing, ever. Spec: `docs/proofing-studio.md` (P1.3).

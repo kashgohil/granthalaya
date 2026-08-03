@@ -269,15 +269,33 @@ throughput.*
   boundaries structure detection needs, footnotes below a rule that must not be spliced into
   verses, and Devanagari shlokas inline in Gujarati pages.
 
-### P1.3 Proofing studio (web, admin-only) ⬜
+### P1.3 Proofing studio (web, admin-only) 🟨
 Human-in-the-loop correction UI — mandatory for scripture-grade fidelity.
-- [ ] Admin area in `apps/web` behind auth (single admin account is fine for now)
-- [ ] Side-by-side page image ↔ extracted text, synced scrolling per verse
-- [ ] Inline editing with Gujarati input; keyboard-first flow (approve verse / edit / flag)
-- [ ] Verse status workflow: `raw → proofed → approved`; per-book progress meter
-- [ ] Low-confidence verses surfaced first; diff view against re-runs of OCR
-- [ ] Export: approved book compiles to a versioned, immutable book package
+- [x] Admin area in `apps/web` behind auth (single admin account is fine for now)
+- [x] Side-by-side page image ↔ extracted text, the passage's pixel boxes drawn on the page
+- [x] Inline editing with Gujarati input at the reader's own metrics; keyboard-first flow
+      (`j`/`k` move, `Enter` approves and advances, `e` edits, `p` toggles the page panel)
+- [x] Verse status workflow: `raw → proofed → approved`; per-book progress meter
+- [x] Low-confidence verses surfaced first; diff view against re-runs of OCR
+- [x] **Structural editing** — split, merge, insert, delete, renumber; retitle sections. Not in
+      the original list, and the slice does not work without it: the verse-number checksum reports
+      *segmentation* errors, which no amount of text editing can fix
+- [x] Footnotes and held-back blocks reviewed page by page — the backstop for the one OCR hazard
+      no filter catches
+- [x] Export: approved book compiles to a versioned, immutable package (`contentStatus: "proofed"`)
+- [ ] **Proof one full book end-to-end.** Needs the remaining 438 pages OCR'd (~₹219), the source
+      edition and rights answered, and the hours. All three are the owner's
 - **Done when:** one full book is proofed end-to-end in the studio and exported as `v1`.
+
+  *Studio landed 2026-08-03; awaiting the proofing itself.* `packages/db` is a new workspace
+  package — Postgres via Drizzle, migrations as committed SQL, PGlite for hermetic tests.
+  `apps/api/src/modules/studio/` splits into `content.ts` (the only file that touches `content/`),
+  `import.ts` (import and re-import), `verses.ts` (the queue), `restructure.ts`, `apparatus.ts` and
+  `export.ts`; `modules/admin/` holds the session. The web studio is `/studio`: a book list, an
+  overview that recomputes the checksum from the current rows, and a three-column workbench.
+  Verified end to end against the real draft — imported, queued worst-first, split and merged,
+  approved, exported, and the package validated as `proofed` with no issues. Spec:
+  `docs/proofing-studio.md`.
 
 ### P1.4 Layer authoring (studio) ⬜
 Translations, word-meanings, glossary — the 5-layer verse stack.
@@ -663,10 +681,55 @@ Each mode is a self-contained exercise over a recital item.
 | 2026-08-03 | **Confidence is a table of fixed per-flag penalties**, not a formula | A fabricated number that cannot be argued with is worse than no number. As a table, a report's reader can see that a passage scored 0.65 because it had no printed number, and disagree. Its job is to *order* the proofing queue, not to decide anything |
 | 2026-08-03 | **A Gujarati book admits Devanagari as well as Gujarati**; Latin stays the tripwire | A Sanskrit shloka quoted mid-discourse is printed in Devanagari on a Gujarati page and it is scripture — the format has admitted that shape since P0.2's `sample-prose`. The single-script filter written for the English-description hazard would have quietly deleted every one of them. Latin still catches the hazard it was written for |
 | 2026-08-03 | The source edition, licence and title are written as **`unknown` and named in the report**, never guessed | Inventing a source edition is a small fiction in a project whose first principle is fidelity. The running heads are offered as *evidence* instead — with the folio stripped and non-Gujarati lines dropped, or `INDEX`, a button the PDF viewer draws, wins the tally and gets offered as the book's title |
+| 2026-08-03 | **Ports moved to :4567 (api) and :4568 (web)**, superseding the 3001/3000 pair above | 3000 and 3001 are the two most contested ports on a developer's machine, and it showed: three stray `bun` listeners were sharing :3001 while a fourth held :3000, so `bun run dev` failed and a request could reach any of them. The reasoning from 2026-07-31 is unchanged — both still fail loudly on a taken port rather than hopping — only the numbers move, somewhere nothing else claims. The API's CORS allowlist, both `.env.example`s and the Eden clients' defaults move with them, because a client pointed at the old port is a CORS error rather than a connection refused |
+| 2026-08-03 | **Postgres + Drizzle in a new `packages/db`**, not SQLite in the API | Owner's call on the database; the package exists because the schema is shared ground — the API reads it today and P1.5's catalog will publish out of it. Migrations are generated SQL, committed and applied at API startup, never `db:push`: these tables hold hours of proofing that exists nowhere else, and a schema change that silently rewrites a column is the one failure this project cannot absorb |
+| 2026-08-03 | **`jsonb` values are never handed to the driver as strings** — a passthrough column type, and predicates (`jsonb_exists`, `to_jsonb(int)`) that pass no JSON as a parameter | Drizzle's `jsonb` pre-stringifies for `pg`/`postgres.js`; `Bun.SQL` serializes JS values itself. Together they encoded twice, and every value in the live database was a jsonb *string*. Reads round-tripped so nothing looked wrong — but `jsonb_array_elements` errored, and every containment filter matched nothing *silently*, which is the worst way for a filter to fail. Found by running the studio's own queries against the real database during review; migration `0001` repairs existing rows |
+| 2026-08-03 | **PGlite cannot catch a driver-encoding fault, and that limit is now written down** | It is the cost of the decision above: PGlite does not double-encode, so the suite was green while Postgres held the wrong bytes. The response is not to abandon hermetic tests but to stop relying on them for this class — the identity of the `toDriver` mapper is pinned by a driver-independent unit test, and the two jsonb predicates were verified by hand against real Postgres |
+| 2026-08-03 | Tests run against **PGlite**, not the dev database | Postgres compiled to WebAssembly, so the same DDL, `gen_random_uuid()` and `jsonb` behaviour as production — and `bun test` still passes on a clean checkout with no server running, which the repo's check/typecheck/test gate depends on. A test suite that needs a running database is a gate people stop running |
+| 2026-08-03 | **The studio's state is Postgres; the package on disk is never edited** | Restates P0.2's "a package is a build artefact" as a mechanism. Export re-derives `book.json` from the rows, which is what makes re-running `assemble` safe — the draft it overwrites was never the thing being corrected |
+| 2026-08-03 | A re-import **replaces an untouched row wholesale and never overwrites a touched one** | The segmentation rules will be tuned for a long time and every run rewrites `book.json`, so the studio has to absorb a new draft without discarding the reading that produced the old one. "Touched" is decided by evidence — text still equal to `ocrText`, status still `raw` — rather than by a flag, so a re-run that improves an unread passage simply improves it, and a disagreement with a human is resolved by a human. Nothing is deleted: a passage the new draft no longer produces is `orphaned`, because a passage vanishing between two runs is exactly what the number checksum exists to catch |
+| 2026-08-03 | A re-import **never refreshes the manifest or a section title** | They are precisely the fields `assemble` writes `unknown` into and names as a human's job. Refreshing them would undo the one part of a package a machine can never supply, every time the rules were tuned |
+| 2026-08-03 | **Page images are matched to a book by source SHA-256, not by directory name** | The package dir and the pages dir are named differently and nothing links them — but the pipeline carries the source hash forward at every hop, so matching on it turns the chain of custody from a record into a mechanism: the studio cannot put a page image beside text that did not come off that exact file |
+| 2026-08-03 | **Structural editing is in scope for P1.3** — split, merge, insert, delete, renumber | The verse-number checksum reports missing, duplicate and out-of-sequence numbers, and all three are *segmentation* faults: a dropped `॥૬૨॥` welds two passages together, a spurious one splits one. Text editing cannot fix either, and the only alternative — retune `assemble`, re-run, re-import — is a machine overruling a human on a book they have already read part of. Ref churn is free here precisely because nothing is published; lineage is recorded so a re-import can still match |
+| 2026-08-03 | On a merge the **earlier passage survives**, with its number and id | In a printed book the number *closes* a passage, so when `॥૬૨॥` is misread and two passages run together, the text that follows belongs to the passage that was already open. Evidence is unioned because the merged passage genuinely came off both pages; `no-number` and `very-short` are recomputed rather than inherited, or absorbing an unnumbered half would flag a numbered passage as unnumbered |
+| 2026-08-03 | **A verse id is re-derived when its number changes** | The number is the identity — it is what a reader would cite and what survives re-extraction. A passage whose id said `v61` while its printed page said `૬૩` would be a lie in the one field that has to be citable |
+| 2026-08-03 | **Export refuses unless every passage is `approved`**, and writes `proofed` rather than `published` | `proofed` is "somebody read this against the page"; `approved` is "this may be published". Collapsing them would let a book that has been read but not cleared reach the catalog. And publishing stays P1.5's step, so a proofed package can sit and be re-read before anyone installs it. A version is written once — a correction is a new `contentVersion`, never an edit to a file already handed out |
+| 2026-08-03 | **The session cookie's HMAC is computed by hand, not by Elysia's `sign` option** | Configured at the instance level on Elysia 1.4.29 it silently did nothing: the cookie went out as a bare `granthalaya_admin=admin.1786357083`, so anything that could be read could be written and a forged payload was a valid session. Caught by the test that tried it. A gate that fails open without saying so is worse than no gate, and this is the surface that moves scripture out of draft |
+| 2026-08-03 | An **unconfigured studio serves its routes and refuses them (503)** rather than not mounting them | Mounting conditionally would make `App` — and therefore the typed Eden client the studio is written against — depend on whether the machine that compiled it happened to have a password in its environment. It also lets the studio say *why* it cannot let anyone in instead of showing a login form that could never work |
+| 2026-08-03 | `ADMIN_PASSWORD_HASH` **must be written with escaped dollars**, and the API refuses to start otherwise | Bun expands `$NAME` in `.env` *inside quotes as well*, and an argon2 hash is nothing but `$`-delimited fields — pasted verbatim it becomes `=19=65536,…`. The only symptom is the right password being refused, which reads as a forgotten password rather than a parsing bug, so it is caught at startup with the fix in the message |
 | 2026-08-01 | **Script detection lives in `packages/core`**, not in the pipeline | The studio needs the same question answered — a translation pasted into the transliteration slot is a `latn` run where `gujr` was declared — and it is platform-pure logic over the format's own `Script` union. The danda counts as script-neutral there for the same reason `punctuation.ts` treats it as shared |
 
 ## Changelog
 
+- **2026-08-03** — **P1.3's studio landed: the draft can now be read.** `/studio` in `apps/web`,
+  behind a single-admin session, over a new `packages/db` (Postgres + Drizzle). A draft is imported
+  from `content/books/`, and its page images are found by **source SHA-256 rather than by name** —
+  the two directories are named differently, so matching on the hash the pipeline carries forward
+  turns the chain of custody from a record into a mechanism. The workbench is three columns: the
+  queue you work down (book order, or `assembly.json`'s own worst-first), the page image with the
+  passage's pixel boxes drawn on it, and the text set through the same `resolveTextStyle` the
+  reader uses, with `checkOrthography` running live and every normalization repair listed so
+  re-reading a passage becomes re-reading six places.
+  Two things the original slice list did not have, and the slice does not work without either.
+  **Structural editing** — split, merge, insert, delete, renumber — because the verse-number
+  checksum reports *segmentation* faults and no amount of text editing fixes a dropped `॥૬૨॥`.
+  And **re-import that does not overwrite people**: an untouched row is replaced wholesale, a
+  touched one keeps what the human did and goes back in the queue flagged, and a passage the new
+  draft no longer produces is orphaned rather than deleted. That is what makes tuning `assemble`
+  safe after proofing has started.
+  Export refuses more than it writes — every passage `approved` (not merely `proofed`), nothing
+  still `unknown`, and a version written once — then recomputes each verse hash over the proofed
+  text and validates against P0.2 before writing `contentStatus: "proofed"`. Verified end to end on
+  the real draft: imported, queued worst-first (the unnumbered `p86-6` at 0.65 first, both
+  page-spanning passages next), split and merged back, approved, exported, and `bun run validate`
+  reported no issues.
+  Also fixed on the way: Elysia's cookie `sign` option was a **no-op**, shipping the session
+  unsigned — a forged `granthalaya_admin=admin.<future>` was a valid login. The HMAC is ours now,
+  and the test that found it is permanent. Spec: `docs/proofing-studio.md`.
+  Next: **the proofing itself** — OCR the remaining 438 pages (~₹219), answer the source edition
+  and rights, and read the book. Those three are what close P1.3. Then **P1.4**, layer authoring,
+  which is where the footnotes the studio now displays finally get attached to the words that
+  pointed at them.
 - **2026-08-03** — **P1.2's back half landed: the pages become a book.** `bun run assemble
   <ocr-dir>` reads what `ocr` wrote and emits a draft P0.2 package plus an `assembly.json`
   sidecar — the proofing queue P1.3 will work from, carrying each passage's pages, pixel boxes,
