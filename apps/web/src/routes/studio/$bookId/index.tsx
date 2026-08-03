@@ -5,9 +5,11 @@ import { type Division, DivisionRow } from "#/components/studio/division-row";
 import { ExportButton } from "#/components/studio/export-button";
 import { ManifestForm } from "#/components/studio/manifest-form";
 import { ProgressMeter } from "#/components/studio/progress-meter";
+import { PublishButton } from "#/components/studio/publish-button";
 import { StudioPageHeader } from "#/components/studio/studio-page-header";
 import { StudioPanel } from "#/components/studio/studio-panel";
 import { buttonVariants } from "#/components/ui/button";
+import { API_URL } from "#/lib/api";
 import { useBook } from "#/lib/studio";
 import { cn } from "#/lib/utils";
 
@@ -68,6 +70,15 @@ function BookOverview() {
 		pagesAssembled: number[];
 	};
 	const live = data.sequence as Sequence;
+	/** What has already been handed out. Immutable, so this list only ever grows. */
+	const releases = data.releases as {
+		contentVersion: string;
+		sha256: string;
+		bytes: number;
+		verses: number;
+		publishedAt: string;
+		url: string;
+	}[];
 
 	const sequenceProblems = live.missing.length + live.duplicates.length + live.outOfOrder.length;
 
@@ -163,6 +174,11 @@ function BookOverview() {
 				<div className="max-w-md space-y-3">
 					<ProgressMeter counts={data.counts} />
 					<ExportButton bookId={bookId} counts={data.counts} needsHuman={data.needsHuman} />
+					<PublishButton
+						bookId={bookId}
+						contentVersion={manifest.contentVersion ?? "1.0.0"}
+						published={releases.map((release) => release.contentVersion)}
+					/>
 				</div>
 			</StudioPageHeader>
 
@@ -191,6 +207,39 @@ function BookOverview() {
 					manifest={data.manifest as Record<string, unknown>}
 					embedded
 				/>
+			</StudioPanel>
+
+			<StudioPanel
+				title="Published versions"
+				note="What has been handed out. A version is written once — a correction is a new version, never an edit to one a reader may already hold."
+			>
+				{releases.length === 0 ? (
+					<p className="text-ink-faint text-sm">
+						Nothing published yet. Export a proofed package, then publish it to the catalog.
+					</p>
+				) : (
+					<ul className="divide-y divide-rule text-sm">
+						{releases.map((release) => (
+							<li key={release.contentVersion} className="flex flex-wrap gap-x-4 gap-y-1 py-2">
+								<span className="w-20 font-medium tabular-nums">v{release.contentVersion}</span>
+								<span className="text-ink-muted">
+									{release.verses} passages · {Math.round(release.bytes / 1024)} KB ·{" "}
+									{new Date(release.publishedAt).toLocaleDateString()}
+								</span>
+								<a
+									href={`${API_URL}${release.url}`}
+									className="text-ink-faint text-xs underline"
+									rel="noreferrer"
+								>
+									package
+								</a>
+								<span className="basis-full break-all font-mono text-ink-faint text-xs">
+									sha256 {release.sha256}
+								</span>
+							</li>
+						))}
+					</ul>
+				)}
 			</StudioPanel>
 
 			<StudioPanel

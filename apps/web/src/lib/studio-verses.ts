@@ -250,3 +250,20 @@ export function useExportBook(bookId: string) {
 		onSuccess: refresh,
 	});
 }
+
+/**
+ * Hand an exported package to the catalog (P1.5).
+ *
+ * The counterpart of `useExportBook`, and deliberately a second button rather than a step of the
+ * first: export compiles what a human cleared, publish hands those exact bytes out. A dry run
+ * takes the same route and writes nothing, which is what makes a preview trustworthy — it is the
+ * publish itself, stopped one line short.
+ */
+export function usePublishBook(bookId: string) {
+	const refresh = useRefresh(bookId);
+	return useMutation({
+		mutationFn: (options: { contentVersion?: string; dryRun?: boolean }) =>
+			unwrap(api.admin.books({ bookId }).publish.post(options)),
+		onSuccess: refresh,
+	});
+}
