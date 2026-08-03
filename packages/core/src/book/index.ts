@@ -2,12 +2,16 @@
  * Book format and verse addressing (P0.2) — spec in `docs/book-format.md`.
  */
 
+export type { ReleaseAudit, ReleaseDiff } from "./audit.ts";
+export { auditRelease, diffReleases } from "./audit.ts";
 export {
 	canonicalizeVerse,
 	fnv1a64,
 	HASH_PREFIX,
 	hashVerse,
 } from "./hash.ts";
+export type { MigrationSummary, RefMigration, RefMigrationStatus } from "./migrate.ts";
+export { bookRefs, migrateRef, migrateRefs, summarizeMigration } from "./migrate.ts";
 export type { BookRef, RefParseResult } from "./refs.ts";
 export {
 	bookRef,
@@ -63,3 +67,5 @@ export type { UnitVisit, VerseVisit } from "./tree.ts";
 export { bookVerses, countVerses, findUnit, findVerse, walkBook } from "./tree.ts";
 export type { BookIssue, BookValidation, IssueSeverity } from "./validate.ts";
 export { formatIssue, parseBook, validateBook } from "./validate.ts";
+export type { BumpKind, Semver } from "./version.ts";
+export { bumpBetween, bumpRank, compareSemver, compareVersions, parseSemver } from "./version.ts";
