@@ -15,6 +15,16 @@ export {
 	sliceAksharas,
 	truncateAksharas,
 } from "./akshara.ts";
+export type { ParsedNumber } from "./digits.ts";
+export {
+	convertDigits,
+	DIGIT_CLASS,
+	digitScript,
+	digitValue,
+	formatIndicNumber,
+	isDigit,
+	parseIndicNumber,
+} from "./digits.ts";
 export type { FontFace, FontFamilySpec, FontRole, FontWeight } from "./fonts.ts";
 export { FONT_FACES, fontFaceId, fontFamily, fontFamilyStack } from "./fonts.ts";
 export type {
