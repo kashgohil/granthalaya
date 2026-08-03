@@ -19,8 +19,16 @@ its own 20,267-sample bench, and 84.3% on the independent olmOCR-Bench, above Ge
 It is also the only one that classifies page regions, which turned out to matter more than the
 accuracy difference. See "The blocks are the point" below.
 
-**This choice is provisional.** One book, four pages of real evidence. The engine sits behind
-one interface so a second can be run over the same pages and diffed.
+**Settled, on four pages of real evidence and one structural argument.** The planned bake-off
+against Gemini 3 / Surya was dropped (2026-08-03): they do not return classified layout blocks,
+which is what decided this in the first place, so the comparison could not have overturned it.
+The engine still sits behind one interface, so switching stays cheap if a book comes back badly
+read.
+
+What that leaves standing is worth stating plainly: **`checkOrthography` catches every word
+Gujarati cannot spell and no word it can.** A substitution that is correctly spelled and simply
+wrong scores zero and reaches proofing unflagged. Nothing in this pipeline can catch that
+without a human reading the page — which is what P1.3 is for, and why it is mandatory.
 
 ## Images in, never the PDF
 
