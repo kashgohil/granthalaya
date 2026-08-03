@@ -311,6 +311,22 @@ test("a lone number in the quotation's script is refused however the run stands"
 	expect(verses[1]?.flags).not.toContain("recovered-number");
 });
 
+test("a double danda written as two single dandas still ends a passage", () => {
+	// Six blocks of the first real book carry `।।` (U+0964 twice) where the rest carry `॥`
+	// (U+0965) — the same mark, read as its parts. Page 362 prints `।।२।।४७६।।`.
+	const verses = allVerses([
+		page(362, [
+			block("ખોટાં સમજે તો બાહેરથી તે ખોટાં થઈ જાય છે. ॥૪૭૫॥"),
+			block("अव्यक्तनिधनान्येव तत्र का परिदेवना ।।२।।४७६।।"),
+			block("અહંવૃત્તિ તે શું? તે ઉપર વાર્તા કરી. ॥૪૭૭॥"),
+		]),
+	]);
+	expect(verses.map((verse) => verse.number?.value)).toEqual([475, 476, 477]);
+	expect(verses[1]?.number?.text).toBe("૪૭૬");
+	// Found, not rewritten: the block's own text is left exactly as the OCR wrote it.
+	expect(verses[1]?.text).toContain("।।२।।");
+});
+
 test("a heading in the book's own script still opens a division", () => {
 	const result = segment([
 		page(1, [block("પહેલી વાત. ॥૧॥")]),

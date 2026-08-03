@@ -192,11 +192,23 @@ const HEADING_TAGS = new Set([
 const PAGE_NUMBER_TAGS = ["page-number", "folio", "header"] as const;
 
 /**
+ * A double danda, in both the forms the OCR writes it.
+ *
+ * `॥` (U+0965) is the character, and six blocks of the first real book instead carry two single
+ * dandas `।।` (U+0964 twice) — the same mark, read as its parts. Admitting both here is a matter
+ * of *finding* structure, not of repairing text: what the block says is left exactly as it is.
+ */
+const DOUBLE_DANDA = "(?:॥|।।)";
+
+/**
  * A passage's printed number, in double dandas: `॥૬૨॥`, or `॥ ૨૧ ॥` in editions that space it.
  * The closing double danda is required — a single danda ends a *line* of verse, and matching it
  * here would cut a shloka into pieces at every line.
  */
-const VERSE_TERMINATOR = new RegExp(`॥\\s*([${DIGIT_CLASS}]+)\\s*॥`, "gu");
+const VERSE_TERMINATOR = new RegExp(
+	`(${DOUBLE_DANDA})\\s*([${DIGIT_CLASS}]+)\\s*${DOUBLE_DANDA}`,
+	"gu",
+);
 
 /**
  * Words an edition ends a work with. Matched only inside a danda-wrapped line, which is how
@@ -536,7 +548,7 @@ export function segmentBook(pages: readonly PageBlocks[], options: SegmentOption
 				// it, cutting the discourse in two and handing the second half the shloka's number
 				// as its identity. Four passages of the first real book were built that way.
 				// Skipping leaves the number where it belongs: inside the quotation's text.
-				const parsed = parseIndicNumber(match[1] as string);
+				const parsed = parseIndicNumber(match[2] as string);
 				let number = parsed;
 				let recovered = false;
 				if (parsed !== null && parsed.script !== script) {
@@ -585,7 +597,7 @@ export function segmentBook(pages: readonly PageBlocks[], options: SegmentOption
 				// into the verse hash — so correcting a misread number would silently invalidate
 				// every annotation keyed to the passage.
 				const before = block.text.slice(cursor, match.index);
-				const opening = [...(match[0] as string)][0] as string;
+				const opening = match[1] as string;
 				if (before.trim() !== "" || pending.length > 0) {
 					pending.push({ text: `${before}${opening}`.trim(), ref, quotation });
 				}
