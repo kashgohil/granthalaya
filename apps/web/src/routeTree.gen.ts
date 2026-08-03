@@ -11,7 +11,11 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as DesignRouteImport } from './routes/design'
+import { Route as StudioRouteRouteImport } from './routes/studio/route'
 import { Route as TypographyRouteImport } from './routes/typography'
+import { Route as StudioIndexRouteImport } from './routes/studio/index'
+import { Route as StudioBookIdIndexRouteImport } from './routes/studio/$bookId/index'
+import { Route as StudioBookIdProofRouteImport } from './routes/studio/$bookId/proof'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -23,38 +27,91 @@ const DesignRoute = DesignRouteImport.update({
   path: '/design',
   getParentRoute: () => rootRouteImport,
 } as any)
+const StudioRouteRoute = StudioRouteRouteImport.update({
+  id: '/studio',
+  path: '/studio',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const TypographyRoute = TypographyRouteImport.update({
   id: '/typography',
   path: '/typography',
   getParentRoute: () => rootRouteImport,
 } as any)
+const StudioIndexRoute = StudioIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => StudioRouteRoute,
+} as any)
+const StudioBookIdIndexRoute = StudioBookIdIndexRouteImport.update({
+  id: '/$bookId/',
+  path: '/$bookId/',
+  getParentRoute: () => StudioRouteRoute,
+} as any)
+const StudioBookIdProofRoute = StudioBookIdProofRouteImport.update({
+  id: '/$bookId/proof',
+  path: '/$bookId/proof',
+  getParentRoute: () => StudioRouteRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/studio': typeof StudioRouteRouteWithChildren
   '/design': typeof DesignRoute
   '/typography': typeof TypographyRoute
+  '/studio/': typeof StudioIndexRoute
+  '/studio/$bookId/proof': typeof StudioBookIdProofRoute
+  '/studio/$bookId/': typeof StudioBookIdIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/design': typeof DesignRoute
   '/typography': typeof TypographyRoute
+  '/studio': typeof StudioIndexRoute
+  '/studio/$bookId/proof': typeof StudioBookIdProofRoute
+  '/studio/$bookId': typeof StudioBookIdIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/studio': typeof StudioRouteRouteWithChildren
   '/design': typeof DesignRoute
   '/typography': typeof TypographyRoute
+  '/studio/': typeof StudioIndexRoute
+  '/studio/$bookId/proof': typeof StudioBookIdProofRoute
+  '/studio/$bookId/': typeof StudioBookIdIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/design' | '/typography'
+  fullPaths:
+    | '/'
+    | '/studio'
+    | '/design'
+    | '/typography'
+    | '/studio/'
+    | '/studio/$bookId/proof'
+    | '/studio/$bookId/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/design' | '/typography'
-  id: '__root__' | '/' | '/design' | '/typography'
+  to:
+    | '/'
+    | '/design'
+    | '/typography'
+    | '/studio'
+    | '/studio/$bookId/proof'
+    | '/studio/$bookId'
+  id:
+    | '__root__'
+    | '/'
+    | '/studio'
+    | '/design'
+    | '/typography'
+    | '/studio/'
+    | '/studio/$bookId/proof'
+    | '/studio/$bookId/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  StudioRouteRoute: typeof StudioRouteRouteWithChildren
   DesignRoute: typeof DesignRoute
   TypographyRoute: typeof TypographyRoute
 }
@@ -75,6 +132,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DesignRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/studio': {
+      id: '/studio'
+      path: '/studio'
+      fullPath: '/studio'
+      preLoaderRoute: typeof StudioRouteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/typography': {
       id: '/typography'
       path: '/typography'
@@ -82,23 +146,52 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof TypographyRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/studio/': {
+      id: '/studio/'
+      path: '/'
+      fullPath: '/studio/'
+      preLoaderRoute: typeof StudioIndexRouteImport
+      parentRoute: typeof StudioRouteRoute
+    }
+    '/studio/$bookId/': {
+      id: '/studio/$bookId/'
+      path: '/$bookId'
+      fullPath: '/studio/$bookId/'
+      preLoaderRoute: typeof StudioBookIdIndexRouteImport
+      parentRoute: typeof StudioRouteRoute
+    }
+    '/studio/$bookId/proof': {
+      id: '/studio/$bookId/proof'
+      path: '/$bookId/proof'
+      fullPath: '/studio/$bookId/proof'
+      preLoaderRoute: typeof StudioBookIdProofRouteImport
+      parentRoute: typeof StudioRouteRoute
+    }
   }
 }
 
+interface StudioRouteRouteChildren {
+  StudioIndexRoute: typeof StudioIndexRoute
+  StudioBookIdProofRoute: typeof StudioBookIdProofRoute
+  StudioBookIdIndexRoute: typeof StudioBookIdIndexRoute
+}
+
+const StudioRouteRouteChildren: StudioRouteRouteChildren = {
+  StudioIndexRoute: StudioIndexRoute,
+  StudioBookIdProofRoute: StudioBookIdProofRoute,
+  StudioBookIdIndexRoute: StudioBookIdIndexRoute,
+}
+
+const StudioRouteRouteWithChildren = StudioRouteRoute._addFileChildren(
+  StudioRouteRouteChildren,
+)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  StudioRouteRoute: StudioRouteRouteWithChildren,
   DesignRoute: DesignRoute,
   TypographyRoute: TypographyRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { createStart } from '@tanstack/react-start'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-  }
-}
