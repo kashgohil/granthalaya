@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import { eq, sql } from "drizzle-orm";
-import { books, verses } from "./schema.ts";
+import { books, releases, verses } from "./schema.ts";
 import { createTestDb } from "./testing.ts";
 
 /**
@@ -121,5 +121,59 @@ test("a jsonb array is stored as an array Postgres can query into", async () => 
 	expect(row?.type).toBe("array");
 	expect(row?.byFlag).toBe(true);
 	expect(row?.byPage).toBe(true);
+	await close();
+});
+
+test("a release outlives the working copy it was compiled from", async () => {
+	const { db, close } = await createTestDb();
+
+	await db.insert(books).values({
+		id: "test-book",
+		packageDir: "books/test-book",
+		sourceFile: "test.pdf",
+		sourceSha256: "abc",
+		bookPageCount: 4,
+		manifest: {},
+		assembly: {},
+	});
+	await db.insert(releases).values({
+		bookId: "test-book",
+		contentVersion: "1.0.0",
+		file: "books/test-book/published/test-book-1.0.0.json",
+		sha256: "0".repeat(64),
+		bytes: 1234,
+		verses: 4,
+		manifest: { title: { en: "test" } },
+	});
+
+	// The one table here that does not cascade, on purpose: deleting a bad import must not erase
+	// the record of bytes that are already on somebody's phone.
+	await db.delete(books).where(eq(books.id, "test-book"));
+
+	const rows = await db.select().from(releases).where(eq(releases.bookId, "test-book"));
+	expect(rows).toHaveLength(1);
+	expect(rows[0]?.publishedAt).toBeInstanceOf(Date);
+	await close();
+});
+
+test("a version is released once — republishing it is a constraint violation", async () => {
+	const { db, close } = await createTestDb();
+
+	const release = {
+		bookId: "test-book",
+		contentVersion: "1.0.0",
+		file: "books/test-book/published/test-book-1.0.0.json",
+		sha256: "0".repeat(64),
+		bytes: 1234,
+		verses: 4,
+		manifest: {},
+	};
+	await db.insert(releases).values(release);
+
+	// Wrapped: drizzle's builder is a thenable, and `expect().rejects` wants a real promise.
+	const republish = async () => {
+		await db.insert(releases).values(release);
+	};
+	await expect(republish()).rejects.toThrow();
 	await close();
 });

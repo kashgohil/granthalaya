@@ -296,6 +296,48 @@ export const setAsideBlocks = pgTable(
 	(table) => [index("set_aside_book_page").on(table.bookId, table.page)],
 );
 
+/**
+ * The catalog: every package version that has been handed out (P1.5).
+ *
+ * The row is a *record of a release*, not working state, and three things follow from that.
+ *
+ * **No foreign key to `books`.** Every other table here cascades from a book, because every
+ * other table is that book's editable copy and deleting a bad import should take all of it.
+ * A release is the opposite: it describes bytes that left this machine. Deleting the studio's
+ * working copy must not erase the fact that `v1.0.0` exists on somebody's phone, and the
+ * catalog must keep serving it.
+ *
+ * **The bytes live on disk; this row pins them.** `sha256` is over the exact file, so a
+ * published package that no longer hashes to its record is a fault the API reports rather than
+ * serves. That is the integrity boundary `docs/book-format.md` §5 names, and it is real crypto
+ * in the API — never the FNV-1a verse hash, which answers a different question.
+ *
+ * **A row is written once.** The primary key is the pair, so republishing a version is a
+ * constraint violation rather than an overwrite.
+ */
+export const releases = pgTable(
+	"releases",
+	{
+		bookId: text("book_id").notNull(),
+		/** Semver. Part of the package's identity, not metadata on it. */
+		contentVersion: text("content_version").notNull(),
+		/** The published package, relative to the content root. Written once, never edited. */
+		file: text("file").notNull(),
+		/** SHA-256 over exactly those bytes. What a client verifies after downloading. */
+		sha256: text("sha256").notNull(),
+		bytes: integer("bytes").notNull(),
+		verses: integer("verses").notNull(),
+		/**
+		 * The package minus `structure` and `aliases` — title, language, source, licence, layers.
+		 * Duplicated out of the file so the catalog can list a shelf of books without opening
+		 * (and parsing) every megabyte-scale package to do it.
+		 */
+		manifest: jsonb("manifest").notNull(),
+		publishedAt: stamp("published_at"),
+	},
+	(table) => [primaryKey({ columns: [table.bookId, table.contentVersion] })],
+);
+
 export type BookRow = typeof books.$inferSelect;
 export type DivisionRow = typeof divisions.$inferSelect;
 export type VerseRow = typeof verses.$inferSelect;
@@ -303,6 +345,7 @@ export type VerseRevisionRow = typeof verseRevisions.$inferSelect;
 export type PageRow = typeof pages.$inferSelect;
 export type PageNoteRow = typeof pageNotes.$inferSelect;
 export type SetAsideRow = typeof setAsideBlocks.$inferSelect;
+export type ReleaseRow = typeof releases.$inferSelect;
 
 export type VerseStatus = (typeof verseStatus.enumValues)[number];
 export type VerseOrigin = (typeof verseOrigin.enumValues)[number];
