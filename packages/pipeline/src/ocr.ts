@@ -186,19 +186,49 @@ export const NOTE_TAGS = new Set(["footer", "footnote"]);
 /** Blocks that carry no transcribable text at all. */
 export const NON_TEXT_TAGS = new Set(["image", "photograph", "chart", "diagram", "advertisement"]);
 
+/** The script each language is set in, for the languages this pipeline actually meets. */
+const PRIMARY_SCRIPT: Readonly<Record<string, Script>> = {
+	gu: "gujr",
+	sa: "deva",
+	hi: "deva",
+	mr: "deva",
+	en: "latn",
+};
+
+/**
+ * The scripts a page of a book in `language` may legitimately come back in.
+ *
+ * The book's own script, plus Devanagari for any Indic language: a Sanskrit shloka quoted inside
+ * a Gujarati discourse is printed in Devanagari on the same page, and it is scripture — the book
+ * format has admitted exactly that shape since P0.2, where `sample-prose` carries a verse
+ * quotation mid-discourse. Latin is never admitted for an Indic book, because it is the tripwire
+ * that caught the model answering in English.
+ */
+export function admittedScripts(language: string): Script[] {
+	const primary = PRIMARY_SCRIPT[language.split("-")[0]?.toLowerCase() ?? ""];
+	if (primary === undefined || primary === "latn") {
+		return primary === undefined ? [] : ["latn"];
+	}
+	return primary === "deva" ? ["deva"] : [primary, "deva"];
+}
+
 /**
  * Split a page's blocks into what belongs in the text and what does not.
  *
  * The third bucket exists because of a real hazard: asked to read a decorative glyph, the model
  * answered *"This image contains no text. It displays three identical black heart symbols…"* —
  * an English description, tagged `paragraph`, sitting mid-page. Left alone it would be
- * published as scripture. Any block that is Latin where the book is Indic is set aside, and
+ * published as scripture. Any block in a script this book does not admit is set aside, and
  * recorded rather than dropped, so nothing disappears without a trace.
+ *
+ * An empty `scripts` list admits everything — the honest behaviour for a language whose script
+ * we have not been told, since guessing would set aside the whole book.
  */
 export function partitionBlocks(
 	blocks: readonly Block[],
-	script: Script,
+	scripts: Script | readonly Script[],
 ): { body: Block[]; notes: Block[]; setAside: Block[] } {
+	const admitted = new Set(typeof scripts === "string" ? [scripts] : scripts);
 	const body: Block[] = [];
 	const notes: Block[] = [];
 	const setAside: Block[] = [];
@@ -212,7 +242,11 @@ export function partitionBlocks(
 			continue;
 		}
 		const profile = profileScript(block.text);
-		if (profile.total > 0 && profile.dominant !== script) {
+		if (
+			admitted.size > 0 &&
+			profile.total > 0 &&
+			(profile.dominant === null || !admitted.has(profile.dominant as Script))
+		) {
 			setAside.push(block);
 			continue;
 		}
@@ -359,7 +393,10 @@ export async function ocrBook(
 					continue;
 				}
 
-				const { body, notes, setAside } = partitionBlocks(digitised.blocks, "gujr");
+				const { body, notes, setAside } = partitionBlocks(
+					digitised.blocks,
+					admittedScripts(options.language),
+				);
 				const text = renderPageMarkdown(body, notes);
 				const file = pageTextFile(page.file, "md");
 				const blocksFile = pageTextFile(page.file, "blocks.json");

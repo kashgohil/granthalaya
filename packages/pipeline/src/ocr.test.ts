@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { type SarvamClient, SarvamError } from "./ocr/sarvam.ts";
 import {
+	admittedScripts,
 	CONFIRM_ABOVE_PAGES,
 	OCR_MANIFEST_FILE,
 	type OcrManifest,
@@ -418,6 +419,38 @@ test("sets aside a block that came back in the wrong script", async () => {
 	);
 	expect(body).toHaveLength(1);
 	expect(setAside[0]?.text).toBe(description);
+});
+
+test("keeps a Devanagari shloka quoted inside a Gujarati discourse", async () => {
+	// These pages carry Sanskrit inline, and it is scripture, not furniture — the book format
+	// has admitted a verse quotation mid-discourse since P0.2. Setting it aside because it is
+	// not Gujarati would quietly delete the quotation from the book.
+	const shloka = "धर्मक्षेत्रे कुरुक्षेत्रे समवेता युयुत्सवः";
+	const { body, setAside } = partitionBlocks(
+		[block(GUJARATI_PAGES[0] as string, "paragraph", 1), block(shloka, "paragraph", 2)],
+		admittedScripts("gu-IN"),
+	);
+	expect(body).toHaveLength(2);
+	expect(setAside).toHaveLength(0);
+});
+
+test("Latin is still the tripwire for a Gujarati book", async () => {
+	const { body, setAside } = partitionBlocks(
+		[block("This image contains no text.", "paragraph", 1)],
+		admittedScripts("gu-IN"),
+	);
+	expect(body).toHaveLength(0);
+	expect(setAside).toHaveLength(1);
+});
+
+test("admittedScripts pairs an Indic book with Devanagari, never with Latin", () => {
+	expect(admittedScripts("gu-IN")).toEqual(["gujr", "deva"]);
+	expect(admittedScripts("gu")).toEqual(["gujr", "deva"]);
+	expect(admittedScripts("sa")).toEqual(["deva"]);
+	expect(admittedScripts("en-GB")).toEqual(["latn"]);
+	// A language we have not been told about admits everything: guessing would set aside the
+	// whole book, which is a worse failure than admitting a stray block for a human to catch.
+	expect(admittedScripts("xx")).toEqual([]);
 });
 
 test("records what it set aside rather than dropping it", async () => {
