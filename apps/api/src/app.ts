@@ -5,6 +5,7 @@ import { config } from "./config.ts";
 import { getDb } from "./db.ts";
 import type { AdminConfig } from "./modules/admin/guard.ts";
 import { createAdminSession } from "./modules/admin/index.ts";
+import { createCatalog } from "./modules/catalog/index.ts";
 import { health } from "./modules/health/index.ts";
 import { createStudio } from "./modules/studio/index.ts";
 
@@ -28,28 +29,29 @@ export type AppOptions = {
 
 export function createApp(options: AppOptions = {}) {
 	const admin = options.admin === undefined ? config.admin : options.admin;
+	// Lazy on purpose: `getDb()` opens no socket, so importing this module does not require a
+	// running Postgres.
+	const db = options.db ?? getDb();
+	const contentDir = options.contentDir ?? config.contentDir;
 
-	return new Elysia()
-		.use(
-			cors({
-				origin: config.corsOrigins,
-				// The studio authenticates with a cookie, and a cross-origin request only carries
-				// one when both sides opt in: this header, and `credentials: "include"` on the
-				// client. Page images need the same, via `crossorigin` on the <img>.
-				credentials: true,
-			}),
-		)
-		.use(health)
-		.use(createAdminSession(admin))
-		.use(
-			createStudio({
-				credentials: admin,
-				// Lazy on purpose: `getDb()` opens no socket, so importing this module does not
-				// require a running Postgres.
-				db: options.db ?? getDb(),
-				contentDir: options.contentDir ?? config.contentDir,
-			}),
-		);
+	return (
+		new Elysia()
+			.use(
+				cors({
+					origin: config.corsOrigins,
+					// The studio authenticates with a cookie, and a cross-origin request only carries
+					// one when both sides opt in: this header, and `credentials: "include"` on the
+					// client. Page images need the same, via `crossorigin` on the <img>.
+					credentials: true,
+				}),
+			)
+			.use(health)
+			// The public half: published books, and the packages themselves. No session, because a
+			// reader's phone has none — the gate is that only `publishBook` writes to the catalog.
+			.use(createCatalog({ db, contentDir }))
+			.use(createAdminSession(admin))
+			.use(createStudio({ credentials: admin, db, contentDir }))
+	);
 }
 
 export const app = createApp();
