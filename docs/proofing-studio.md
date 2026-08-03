@@ -113,8 +113,9 @@ and the report would be pointless if the studio could not act on it.
 
 Ids churn freely, and that is safe precisely because nothing is published: a verse ref is the atom
 every annotation and SRS item will hang off, but none of those exist for a draft. Lineage is
-recorded anyway so a re-import can still match, and P1.5's cross-version audit is what makes a
-rename safe once a version has shipped.
+recorded anyway so a re-import can still match — and it is also what export reads to retire refs
+once a version *has* shipped, which is what makes a rename safe from then on
+(`docs/distribution.md`).
 
 Merging **across a section boundary is refused**. It would change which work a passage belongs to,
 which is a different decision from joining two halves of one.
@@ -145,8 +146,11 @@ Each verse hash is recomputed over the *proofed* text, and the package is valida
 before it is written — a studio that can produce an invalid package is a bug in the studio, not
 something to hand to the catalog and find out.
 
-It comes out `contentStatus: "proofed"`, not `published`. Publishing is P1.5's catalog step, and
-keeping them apart is what lets a proofed book sit and be re-read before anyone installs it.
+It comes out `contentStatus: "proofed"`, not `published`. Publishing is a separate button that
+hands those exact bytes to the catalog, and keeping the two apart is what lets a proofed book sit
+and be re-read before anyone installs it. Once a version *has* been published, export also
+compiles the `aliases` map that retires the refs this version no longer resolves — see
+`docs/distribution.md`.
 
 ## Auth
 

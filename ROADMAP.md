@@ -327,20 +327,41 @@ Translations, word-meanings, glossary — the 5-layer verse stack.
 - [ ] Glossary entities: define a term once, link occurrences across the book
 - **Done when:** the first book ships with original + transliteration + at least one more layer.
 
-### P1.5 Catalog & distribution API (Elysia) ⬜
-- [ ] `apps/api`: catalog endpoint (published books + metadata) and versioned book-package
-      download endpoints
-- [ ] Package integrity (content hash) and semver for content corrections; immutable versions
-- [ ] **Cross-version ID audit, blocking at publish time:** diff the candidate package against
-      the last published version and refuse any verse ref that disappeared without an entry in
-      `aliases`; warn on ID churn that a `patch`/`minor` bump doesn't justify. P0.2's
-      `validateBook` only sees one package in isolation, so nothing today stops a careless
-      republish from orphaning every annotation, highlight and SRS item keyed to a dropped ref
-- [ ] Studio "publish" action pushes an approved package to the catalog
-- [ ] Client install contract documented: download, verify, store locally (SQLite on mobile);
-      annotations rewritten through `aliases` on version upgrade, orphans surfaced not dropped
-- **Done when:** the studio can publish a book and a test client can list, download, and
-  verify it — and a republish that drops a verse ref without an alias is rejected.
+### P1.5 Catalog & distribution API (Elysia) ✅
+- [x] `apps/api`: catalog endpoint (published books + metadata) and versioned book-package
+      download endpoints. `/catalog/*` is the only public surface — `GET /catalog/books`, one
+      book, and `/catalog/books/:id/:version` for the package itself, with `latest` as a 302 to
+      the concrete version so every URL that serves bytes stays immutable
+- [x] Package integrity (content hash) and semver for content corrections; immutable versions.
+      SHA-256 over the bytes as written, recorded in a `releases` table, re-verified on every
+      download and served as the ETag; a version is refused if either the row or the file exists
+- [x] **Cross-version ID audit, blocking at publish time:** `auditRelease` in `packages/core`
+      diffs the candidate against the last published version — a retired verse ref with no entry
+      in `aliases` is an error, a forgotten alias the previous version carried is an error, and a
+      bump that understates its change is a warning. `validateBook` only sees one package in
+      isolation, and this is the failure with no symptom inside one
+- [x] Studio "publish" action pushes an approved package to the catalog. Two buttons on the book
+      overview: **Check** is the same code path stopped one line short of writing, so a preview
+      cannot disagree with the thing it previews
+- [x] **Export retires refs** once a version has been published — not in the original list, and
+      the audit is a wall without it. The map is derived from the last published package and the
+      `lineage` every restructuring operation already records; a genuine deletion aliases to the
+      division that held it
+- [x] Client install contract documented: `docs/distribution.md`. `migrateRefs` implements the
+      upgrade half in `packages/core`, so the mobile installer and the studio cannot disagree
+      about what an alias means — and an unresolvable ref comes back `orphaned` rather than
+      quietly disappearing
+- **Done when:** ~~the studio can publish a book and a test client can list, download, and
+  verify it — and a republish that drops a verse ref without an alias is rejected.~~ ✅
+
+  *Landed 2026-08-04.* `apps/api/src/modules/catalog/` splits into `integrity.ts` (SHA-256 and the
+  exact serialization it is over), `publish.ts` (the refusals and the immutable write),
+  `service.ts` (listing, semver ordering, verified reads) and `index.ts` (the public routes).
+  `packages/core/src/book/` gains `version.ts`, `audit.ts` and `migrate.ts`; `packages/db` gains
+  `releases`, the one table that does not cascade from `books`. The test client is
+  `catalog/routes.test.ts`, which does what a phone does: list, read the hash, download, verify,
+  parse. Spec: `docs/distribution.md`. **The first real publish waits on P1.3's proofing hours,
+  not on code.**
 
 ---
 
@@ -729,10 +750,37 @@ Each mode is a self-contained exercise over a recital item.
 | 2026-08-04 | **An untitled division takes the running head printed across its own pages**, marked `titleSource: "running-head"` | The head is printed on the page, so this is evidence rather than a guess — and it is the only title a division has once a shloka heading is refused. The book's own name is excluded first because the edition sets it on one side of the spread and the division's on the other. A tie leaves the division untitled: two heads appearing equally often over one division is evidence it is really two, and a coin toss would name a division nobody has agreed exists |
 | 2026-08-04 | **One exception to "never for structure": a passage number that abuts a quotation *and* continues the run** is read as the passage's own, however it is scripted | The rule above is right and stays, but Sarvam does not only leave a shloka's `॥१॥` in Devanagari — where the shloka runs up against the passage number it reads *that* in Devanagari too, flattening the pair into `॥२॥१५८॥`. Refusing it merged the passage into its neighbour, six times across the first book, and each loss was invisible except as a gap in the numbering. Both conditions are required because either alone is too weak: adjacency is the flattening a lone marker never has, and continuation is what a quotation's own ordinal — small, restarting inside every shloka — can never fake. It is narrow by measurement rather than by hope: across 442 pages the shape occurs six times and all six are the fault, while the 22 lone Devanagari markers are all genuine. The number is written back in the book's digits and flagged `recovered-number`, so a human still confirms it against the page |
 | 2026-08-04 | The studio's live checksum reads verses ordered by the division's **ordinal**, not its id | Ids are text, so `section-10` sorted before `section-2` and the overview had been checking a shuffled book since P1.3 landed. A checksum over numbers in the wrong order is not a weaker checksum, it is a different one |
+| 2026-08-04 | **Publishing is a second step, and it hands out the exported file's bytes** rather than recompiling from the rows | Export is the compiler and publish is the release. Keeping them apart is what lets a proofed book sit and be re-read before anyone installs it, and it means the bytes that reach a reader are the ones somebody cleared — a recompile at publish time would quietly pick up every edit made since, which is the one thing an approval cannot cover. The only difference between the two files is `contentStatus`, and that difference is load-bearing: the catalog serves only `published` |
+| 2026-08-04 | The catalog is a **`releases` table with no foreign key to `books`** | Every other table in `packages/db` is a book's editable copy and cascades away with a bad import. A release is the opposite — it describes bytes that have left this machine. Deleting the studio's working copy must not erase the record of what is already on somebody's phone, and the catalog has to keep serving it. A row is written once: the primary key is `(bookId, contentVersion)`, so a republish is a constraint violation rather than an overwrite |
+| 2026-08-04 | **`latest` is a 302, not a resource**, and a version URL is served `immutable` with the package's SHA-256 as its ETag | A version *is* an address, so the only URL that returns bytes should never return different bytes. Answering "which version should I install?" with a redirect keeps that true and leaves the client holding a concrete version number to store beside the install. The file is also re-hashed on every download: a published package that no longer matches its record is a 500 with a reason, never served — the entire point of pinning it is that nobody downstream could tell |
+| 2026-08-04 | **Export derives `aliases` from the last published package plus `lineage`; publish audits the result independently** | The two halves are deliberately different code. Export knows *what moved* — split, merge and renumber each record where the text went — and where lineage says nothing the ref is a genuine deletion, which the format answers by aliasing to the division that held it. The audit knows nothing about lineage and only asks whether every published ref still points somewhere, so it catches an export bug, a hand-edited package, or a package produced by some future route. A derivation checked by its own derivation would check nothing |
+| 2026-08-04 | **A dropped ref is an error; an understating bump is a warning** | They fail differently. A ref that disappears without an alias silently orphans every highlight, flashcard and SRS item keyed to it on devices that already installed the older version, and nothing downstream would ever notice — so it blocks. A `patch` that should have been `major` is a wrong *instruction* to the client, which still runs the same migration and still surfaces its orphans; it is worth saying loudly and not worth refusing over. `migrateRefs` is in `packages/core` for the same reason the audit is: the installer and the studio's preview must not be able to disagree about what an alias means |
 | 2026-08-03 | **A block boundary within a page is a paragraph break; one across a page is not** | Two fragments of a passage are always two blocks, so the page is the deciding evidence. Within a page the OCR split them because the typesetter did — the second begins with a first-line indent, mid-passage. Across a page the opposite is the ordinary case, and the only printed signal for a *new* paragraph at the top of a page is that indent, which Sarvam's block-level boxes cannot see; `spans-pages` already sends a human to the image. Assembly previously joined every non-quotation fragment with a single `\n`, which `joinPrintedLines` folds as a line wrap — correct inside a block, wrong between two. It cost 328 paragraph breaks in 143 of 625 passages, including વાત ૬૭, a 4,904-character enumerated list whose `(૨)`–`(૭)` items each open a paragraph |
 | 2026-08-01 | **Script detection lives in `packages/core`**, not in the pipeline | The studio needs the same question answered — a translation pasted into the transliteration slot is a `latn` run where `gujr` was declared — and it is platform-pure logic over the format's own `Script` union. The danda counts as script-neutral there for the same reason `punctuation.ts` treats it as shared |
 
 ## Changelog
+
+- **2026-08-04** — **P1.5 landed: there is a catalog, and a version can leave the building.**
+  `/catalog` is the API's only public surface — list the shelf, read a version's SHA-256, download
+  the package, verify it. Publishing is a separate button from export and hands out the exported
+  file's own bytes, flipped to `contentStatus: "published"`, hashed as written and recorded in a
+  new `releases` table that deliberately does *not* cascade from `books`: a release describes
+  bytes that have left this machine, and deleting the working copy must not erase them.
+  The part worth writing down is what a second package makes visible. `validateBook` sees one
+  package and cannot see the failure that matters: a republish that drops a verse ref orphans
+  every highlight, flashcard and SRS item keyed to it on devices that already installed — and the
+  package that did it validates perfectly. So `auditRelease` diffs the candidate against the last
+  published version and refuses a retired ref with no alias, refuses an alias the previous version
+  carried and this one forgot (clients upgrade from whatever they installed, not from the version
+  before this one), and warns when a bump understates its change.
+  That audit is a wall unless something can satisfy it, so export now compiles the retirement map
+  too — from the last published package and the `lineage` split, merge and renumber already
+  record, with a genuine deletion aliasing to the division that held it. The two halves are
+  separate code on purpose: a derivation checked by its own derivation checks nothing.
+  `migrateRefs` closes the loop in `packages/core`, so the mobile installer and the studio cannot
+  disagree about what an alias means, and an unresolvable ref comes back `orphaned` rather than
+  quietly disappearing. Spec: `docs/distribution.md`. **The first real publish waits on P1.3's
+  proofing hours, not on code** — then **P1.4**, layer authoring.
 
 - **2026-08-04** — **P1.2 is done: the first book is off the press and the checksum is clean.**
   All 442 pages of *Gopalanand Swami ni Vato* are OCR'd, and the draft assembles into 39

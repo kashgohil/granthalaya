@@ -13,13 +13,28 @@ content/
   pages/      # rendered page images, one folder per book + a pages.json manifest
   ocr/        # what the OCR read back, per page, with its layout blocks
   books/      # draft packages: book.json + assembly.json, as `assemble` wrote them
-    <book>/proofed/   # versioned packages the studio exported, once a human has read them
+    <book>/proofed/     # versioned packages the studio exported, once a human has read them
+    <book>/published/   # what the catalog serves. Not scratch — see below
 ```
 
 The studio (P1.3) only ever *reads* `books/<book>/book.json` — the editable copy of a book being
 proofed lives in Postgres, so the draft on disk stays exactly as the machine wrote it and a
 re-import always has something honest to diff against. `proofed/` is what export writes, and a
 version there is written once: a correction is a new `contentVersion`, never an edit.
+
+## `published/` is the one directory here that cannot be rebuilt
+
+Everything else under `content/` is derived: lose it and you re-render, re-OCR, re-assemble.
+A **published** package is not derived — it is a copy of bytes that have been handed out, pinned
+by the SHA-256 in the `releases` table, and it is load-bearing twice over (`docs/distribution.md`):
+
+- the catalog serves those exact bytes, and refuses to serve a file that no longer matches its
+  recorded hash;
+- the *next* version's export reads it to work out which refs it retires, and refuses to compile
+  without it rather than shipping a package that silently orphans annotations.
+
+So `published/` needs backing up, or the release bytes need somewhere durable to live. Postgres
+holds the record and the hash; it does not hold the file.
 
 ## Putting a PDF in
 

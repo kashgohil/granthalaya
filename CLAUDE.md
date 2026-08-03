@@ -156,3 +156,8 @@ next to the code as `*.test.ts`.
   wrote; the editable copy is Postgres, and export re-derives a package from it. That is what makes
   re-running `assemble` safe. A re-import replaces a row nobody has touched and never overwrites
   one somebody has — and deletes nothing, ever. Spec: `docs/proofing-studio.md` (P1.3).
+- **A published version is written once.** Publishing hands out the exported file's own bytes,
+  hashed as written and recorded in `releases`; corrections ship as a new `contentVersion`. Every
+  ref a published version resolved must still point somewhere in the next one — export compiles
+  that `aliases` map and `auditRelease` refuses the package if it doesn't, because a dropped ref
+  orphans user data on devices that already installed. Spec: `docs/distribution.md` (P1.5).

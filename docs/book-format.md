@@ -251,8 +251,10 @@ with control separators. IDs, numbering and `form` are deliberately excluded: th
 identity and presentation, not content, and changing them shouldn't read as a text change.
 
 **Package integrity hash** — SHA-256 over the serialized `book.json`, recorded in the catalog
-(P1.5), verified by the client after download. This one *is* a security boundary and is
-computed with real platform crypto by the pipeline and the API, never in `packages/core`.
+and verified by the client after download. This one *is* a security boundary and is computed
+with real platform crypto by the pipeline and the API, never in `packages/core`. The catalog,
+the publish-time cross-version audit that enforces the stability rules above, and the client's
+install and upgrade contract are all in `docs/distribution.md` (P1.5).
 
 ---
 
