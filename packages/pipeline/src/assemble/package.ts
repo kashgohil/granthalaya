@@ -161,6 +161,36 @@ function verseId(verse: SegmentedVerse, sectionIndex: number, ordinal: number): 
 }
 
 /**
+ * The same id, made unique among its siblings.
+ *
+ * A verse id is its printed number, which is the edition's own identity for the passage — but
+ * that is a promise about a well-behaved discourse, not a property of every page in a book. The
+ * first full run of this pipeline found three ways it breaks: an index whose numbering restarts
+ * several times on one spread, a Sanskrit shloka whose own `॥२॥` is read as the passage's, and
+ * a plain misprint.
+ *
+ * None of those is `assemble`'s to decide — the studio is where a human says which passage is
+ * really `૨` — but an *invalid package* is `assemble`'s to prevent, and a division may not hold
+ * two children with the same id. So the collision is suffixed and left visible: the passage still
+ * carries its printed `number`, and `duplicate-number` is already among its flags, so it sorts
+ * into the proofing queue as something to settle rather than disappearing into a valid-looking
+ * package.
+ */
+function uniqueVerseId(wanted: string, taken: Set<string>): string {
+	if (!taken.has(wanted)) {
+		taken.add(wanted);
+		return wanted;
+	}
+	for (let suffix = 2; ; suffix += 1) {
+		const candidate = `${wanted}-${suffix}`;
+		if (!taken.has(candidate)) {
+			taken.add(candidate);
+			return candidate;
+		}
+	}
+}
+
+/**
  * Running heads, tallied — evidence for whoever has to supply the book's real title.
  *
  * Only heads in the book's own script count. The first real book's headers each carry the word
@@ -229,9 +259,10 @@ export function assemblePackage(
 	for (const [sectionIndex, section] of segmented.sections.entries()) {
 		const sectionId = `section-${sectionIndex + 1}`;
 		const children: BookUnit[] = [];
+		const takenIds = new Set<string>();
 
 		for (const [ordinal, verse] of section.verses.entries()) {
-			const id = verseId(verse, sectionIndex, ordinal);
+			const id = uniqueVerseId(verseId(verse, sectionIndex, ordinal), takenIds);
 			const layers = { [metadata.layerId]: verse.text };
 			const unit: BookVerse = {
 				kind: "verse",
