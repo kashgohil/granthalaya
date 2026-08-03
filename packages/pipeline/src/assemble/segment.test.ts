@@ -257,6 +257,60 @@ test("a rejected number does not swallow the danda the real one needs", () => {
 	expect(verses[0]?.text).toContain("॥२॥");
 });
 
+test("a passage number flattened into the quotation's script is recovered", () => {
+	// Page 153 of the first real book prints `॥૧૫૮॥` right after the shloka's own `॥૨॥`, and
+	// Sarvam — reading a Devanagari line — returns both in Devanagari: `॥२॥१५८॥`. Refusing the
+	// pair outright merged 158 into 159. Six passages of the first book were lost that way.
+	const verses = allVerses([
+		page(153, [
+			block("સંગે કરીને મહિમા શીખવો. ॥૧૫૭॥"),
+			block("તે વિદુરનીતિમાં કહ્યું છે જે – यादृगिच्छेच्च भवितुं तादृद्भवति पुरुषः ॥२॥१५८॥"),
+			block("સંત દ્વારાએ કરીને પણ અનેક જીવોનાં કલ્યાણ કર્યાં. ॥૧૫૯॥"),
+		]),
+	]);
+	expect(verses.map((verse) => verse.number?.value)).toEqual([157, 158, 159]);
+	// Written back in the book's own digits, because that is what the page prints.
+	expect(verses[1]?.number?.text).toBe("૧૫૮");
+	expect(verses[1]?.number?.script).toBe("gujr");
+	// The shloka's own marker is not the passage's, and stays in its text.
+	expect(verses[1]?.text).toContain("॥२॥");
+	// A repair to confirm against the page, not a reading to trust.
+	expect(verses[1]?.flags).toContain("recovered-number");
+	// And nothing downstream is left looking wrong.
+	expect(verses[2]?.flags).not.toContain("out-of-sequence");
+});
+
+test("a number in the quotation's script is refused unless it continues the run", () => {
+	// Adjacency alone is too weak: a shloka that prints two markers in a row must not have the
+	// second read as the discourse's number. Continuation is what tells them apart — a
+	// quotation's ordinals are small and restart inside every shloka.
+	const verses = allVerses([
+		page(1, [
+			block("પહેલી વાત છે. ॥૨૨૭॥"),
+			block("સ્વામીએ કહ્યું – प्रवृत्तिं च निवृतिं च कार्याकार्ये भयाभये ॥१॥२॥"),
+			block("એમ સમજવું. ॥૨૨૮॥"),
+		]),
+	]);
+	expect(verses.map((verse) => verse.number?.value)).toEqual([227, 228]);
+	expect(verses[1]?.text).toContain("॥१॥२॥");
+	expect(verses[1]?.flags).not.toContain("recovered-number");
+});
+
+test("a lone number in the quotation's script is refused however the run stands", () => {
+	// The pair is the whole of the evidence. A shloka's `॥४॥` standing on its own stays refused
+	// even when it happens to be exactly one past the last passage — no flattening, no recovery.
+	const verses = allVerses([
+		page(1, [
+			block("પહેલી વાત છે. ॥૩॥"),
+			block("प्रवृत्तिं च निवृतिं च कार्याकार्ये भयाभये ॥४॥"),
+			block("એમ સમજવું. ॥૪॥"),
+		]),
+	]);
+	expect(verses.map((verse) => verse.number?.value)).toEqual([3, 4]);
+	expect(verses[1]?.text).toContain("॥४॥");
+	expect(verses[1]?.flags).not.toContain("recovered-number");
+});
+
 test("a heading in the book's own script still opens a division", () => {
 	const result = segment([
 		page(1, [block("પહેલી વાત. ॥૧॥")]),

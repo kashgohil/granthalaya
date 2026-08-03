@@ -22,6 +22,7 @@ import {
 	checkOrthography,
 	checkVerseSequence,
 	DIGIT_CLASS,
+	formatIndicNumber,
 	normalizeScriptureText,
 	type OrthographyReport,
 	type ParsedNumber,
@@ -74,7 +75,9 @@ export type VerseFlag =
 	/** Short enough to be a fragment rather than a passage. */
 	| "very-short"
 	/** Contains a run in another admitted script — a Sanskrit shloka inside a Gujarati discourse. */
-	| "contains-quotation";
+	| "contains-quotation"
+	/** Its number was printed in the quotation's script and recovered from the run — see below. */
+	| "recovered-number";
 
 /**
  * How much each flag costs a passage's confidence.
@@ -88,6 +91,7 @@ export const CONFIDENCE_PENALTY: Readonly<Record<VerseFlag, number>> = {
 	"no-number": 0.35,
 	"duplicate-number": 0.3,
 	"out-of-sequence": 0.3,
+	"recovered-number": 0.2,
 	"very-short": 0.15,
 	"spans-pages": 0.1,
 	"hyphen-join": 0.05,
@@ -330,7 +334,7 @@ export function segmentBook(pages: readonly PageBlocks[], options: SegmentOption
 	let sectionStart = true;
 
 	/** Turn the accumulated fragments into a passage. Returns null when there is nothing to close. */
-	const closeVerse = (number: ParsedNumber | null): SegmentedVerse | null => {
+	const closeVerse = (number: ParsedNumber | null, recovered = false): SegmentedVerse | null => {
 		if (pending.length === 0) {
 			return null;
 		}
@@ -413,6 +417,9 @@ export function segmentBook(pages: readonly PageBlocks[], options: SegmentOption
 		if (fragments.some((fragment) => fragment.quotation)) {
 			flags.push("contains-quotation");
 		}
+		if (recovered) {
+			flags.push("recovered-number");
+		}
 
 		const penalty = flags.reduce((total, flag) => total + (CONFIDENCE_PENALTY[flag] ?? 0), 0);
 
@@ -430,8 +437,8 @@ export function segmentBook(pages: readonly PageBlocks[], options: SegmentOption
 		};
 	};
 
-	const pushVerse = (number: ParsedNumber | null): void => {
-		const verse = closeVerse(number);
+	const pushVerse = (number: ParsedNumber | null, recovered = false): void => {
+		const verse = closeVerse(number, recovered);
 		if (verse !== null) {
 			currentVerses.push(verse);
 		}
@@ -516,6 +523,8 @@ export function segmentBook(pages: readonly PageBlocks[], options: SegmentOption
 			// than assuming a block ends at most one.
 			VERSE_TERMINATOR.lastIndex = 0;
 			let cursor = 0;
+			/** Where the last refused match ended, for the adjacency test below. */
+			let refusedEnd: number | null = null;
 			for (;;) {
 				const match = VERSE_TERMINATOR.exec(block.text);
 				if (match === null) {
@@ -527,19 +536,49 @@ export function segmentBook(pages: readonly PageBlocks[], options: SegmentOption
 				// it, cutting the discourse in two and handing the second half the shloka's number
 				// as its identity. Four passages of the first real book were built that way.
 				// Skipping leaves the number where it belongs: inside the quotation's text.
-				const number = parseIndicNumber(match[1] as string);
+				const parsed = parseIndicNumber(match[1] as string);
+				let number = parsed;
+				let recovered = false;
+				if (parsed !== null && parsed.script !== script) {
+					// One exception, and only one: a passage number the OCR read in the *quotation's*
+					// script because the quotation ran right up against it. Page 153 prints `॥૧૫૮॥`
+					// immediately after the shloka's own `॥૨॥`, and Sarvam, reading a Devanagari
+					// line, returns the pair flattened into `॥२॥१५८॥` — both numbers in Devanagari,
+					// the passage's own among them.
+					//
+					// Two conditions together, because either alone is too weak. **Adjacency**: the
+					// number directly abuts another danda group, sharing its danda or separated only
+					// by spaces — the flattening this is about, and what a lone marker never has.
+					// **Continuation**: it is exactly one past the last passage closed, which a
+					// quotation's own ordinal is not, those being small numbers that restart inside
+					// every shloka.
+					//
+					// The pair is the whole of the evidence. Across the first real book's 442 pages
+					// this shape occurs six times and all six are this fault; its 22 lone Devanagari
+					// markers are all genuine shloka markers and stay refused, exactly as before.
+					const abuts =
+						refusedEnd !== null && block.text.slice(refusedEnd, match.index).trim() === "";
+					if (abuts && previousNumber !== null && parsed.value === previousNumber + 1) {
+						// Written back in the book's own digits, because that is what the page prints
+						// and what the reader must render. Flagged, because it is a repair a human
+						// should confirm against the page rather than a reading to be trusted.
+						number = {
+							value: parsed.value,
+							script,
+							text: formatIndicNumber(parsed.value, script),
+						};
+						recovered = true;
+					}
+				}
 				if (number === null || number.script !== script) {
 					// Resume one character in rather than past the whole match, because two of these
-					// groups can share a danda. Page 153 flattens a shloka's footnote marker and
-					// the passage number into `॥२॥१५८॥`, where one danda closes the first and opens
-					// the second — so consuming the whole rejected match would take the danda the
-					// real number needs. (On that page the OCR read *both* as Devanagari, so both
-					// are refused and ૧૫૮ is reported missing, which is the OCR error a human is
-					// meant to be sent to page 153 for. The backup is what makes the mixed case,
-					// where only the marker is misread, come out right.)
+					// groups can share a danda — so consuming the whole rejected match would take the
+					// danda the real number needs.
+					refusedEnd = match.index + (match[0] as string).length;
 					VERSE_TERMINATOR.lastIndex = match.index + 1;
 					continue;
 				}
+				refusedEnd = null;
 				// The danda stays with the text and the number does not, which is how P0.2's own
 				// fixtures are written: `ધિયો યો નઃ પ્રચોદયાત્ ॥` with `number: "૪"` beside it.
 				// Keeping the number in both places would render it twice and, worse, fold it
@@ -550,7 +589,7 @@ export function segmentBook(pages: readonly PageBlocks[], options: SegmentOption
 				if (before.trim() !== "" || pending.length > 0) {
 					pending.push({ text: `${before}${opening}`.trim(), ref, quotation });
 				}
-				pushVerse(number);
+				pushVerse(number, recovered);
 				cursor = match.index + match[0].length;
 			}
 
