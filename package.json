@@ -21,6 +21,9 @@
     "ocr": "bun packages/pipeline/src/cli.ts ocr",
     "assemble": "bun packages/pipeline/src/cli.ts assemble",
     "validate": "bun packages/pipeline/src/cli.ts validate",
+    "db:generate": "bun run --filter '@granthalaya/db' db:generate",
+    "db:migrate": "bun run --filter '@granthalaya/db' db:migrate",
+    "db:studio": "bun run --filter '@granthalaya/db' db:studio",
     "fonts:sync": "bun scripts/fetch-fonts.ts",
     "design:sync": "bun scripts/sync-design.ts"
   },

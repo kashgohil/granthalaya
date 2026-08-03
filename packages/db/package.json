@@ -1,0 +1,27 @@
+{
+  "name": "@granthalaya/db",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Postgres schema and client for the admin studio's editable state (Drizzle). Internal tooling — never reached by a consumer client.",
+  "exports": {
+    ".": "./src/index.ts",
+    "./schema": "./src/schema.ts",
+    "./testing": "./src/testing.ts"
+  },
+  "scripts": {
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "bun run ./src/migrate.ts",
+    "db:studio": "drizzle-kit studio",
+    "typecheck": "tsc --noEmit",
+    "test": "bun test"
+  },
+  "dependencies": {
+    "drizzle-orm": "^0.45.2"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "^0.5.4",
+    "drizzle-kit": "^0.31.10",
+    "typescript": "~6.0.3"
+  }
+}
