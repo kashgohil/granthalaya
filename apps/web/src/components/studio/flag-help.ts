@@ -44,6 +44,11 @@ const FLAGS: Record<string, FlagHelp> = {
 		description:
 			"Carries a run in another script — usually a Sanskrit shloka quoted mid-discourse.",
 	},
+	"recovered-number": {
+		label: "Recovered number",
+		description:
+			"Its printed number was read in the quotation's script and recovered from the run — confirm it against the page.",
+	},
 };
 
 export function flagHelp(flag: string): FlagHelp {
